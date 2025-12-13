@@ -1,451 +1,505 @@
-/* javascript_functions.js - for ajaxCRUD version 6.x */
+/**
+ * ajaxCRUD JavaScript Functions - Modernized for ES6+
+ * @version 7.0
+ */
 
-var loading_image_html; //set via setLoadingImageHTML()
-var filterReq = "";	// used in filtering the table
-var pageReq = "";	// used in pagination
-var sortReq = ""; 	// used for sorting the table
-var this_page;		// the php file loading ajaxCRUD (including all params)
+// Global variables
+let loadingImageHtml = ''; // Set via setLoadingImageHTML()
+let filterReq = '';        // Used in filtering the table
+let pageReq = '';          // Used in pagination
+let sortReq = '';          // Used for sorting the table
+let thisPage = '';         // The PHP file loading ajaxCRUD (including all params)
+let ajaxFile = '';         // The AJAX endpoint file
 
-/* Ajax functions */
-function createRequestObject() {
-     var http_request = false;
-      if (window.XMLHttpRequest) { // Mozilla, Safari,...
-         http_request = new XMLHttpRequest();
-         if (http_request.overrideMimeType) {
-         	// set type accordingly to anticipated content type
-            //http_request.overrideMimeType('text/xml');
-            //http_request.overrideMimeType('text/html');
-            http_request.overrideMimeType('text/plain;charset=ISO-8859-1');
-         }
-      } else if (window.ActiveXObject) { // IE
-         try {
-            http_request = new ActiveXObject("Msxml2.XMLHTTP");
-         } catch (e) {
-            try {
-               http_request = new ActiveXObject("Microsoft.XMLHTTP");
-            } catch (e) {}
-         }
-      }
-      if (!http_request) {
-         alert('Cannot create XMLHTTP instance');
-         return false;
-      }
+// Legacy compatibility - map old var names
+Object.defineProperty(window, 'loading_image_html', {
+    get: () => loadingImageHtml,
+    set: (v) => { loadingImageHtml = v; }
+});
+Object.defineProperty(window, 'this_page', {
+    get: () => thisPage,
+    set: (v) => { thisPage = v; }
+});
+Object.defineProperty(window, 'ajax_file', {
+    get: () => ajaxFile,
+    set: (v) => { ajaxFile = v; }
+});
 
-      return http_request;
+/**
+ * Get the current page URL with appropriate parameter separator
+ */
+function getThisPage() {
+    let returnPageName = thisPage;
+    const paramChar = returnPageName.includes('?') ? '&' : '?';
+    return returnPageName + paramChar;
 }
 
-var http = createRequestObject();
-var add_http = createRequestObject();
-var filter_http = createRequestObject();
-var sort_http = createRequestObject();
-var other_http = createRequestObject();
-
-//used for updating
-function sndUpdateReq(action) {
-    http.open('get', action);
-    http.onreadystatechange = handleUpdateResponse;
-    http.send(null);
+/**
+ * Send an AJAX update request
+ * @param {string} action - The URL to send the request to
+ */
+async function sndUpdateReq(action) {
+    try {
+        const response = await fetch(action, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        const text = await response.text();
+        handleUpdateResponse(text);
+    } catch (error) {
+        console.error('Update request failed:', error);
+    }
 }
 
-function getThisPage(){
-	var returnPageName = this_page;
-	var paramChar = "?";
-	if (returnPageName.indexOf("?") != -1){
-		paramChar = "&";
-	}
-	returnPageName = returnPageName + paramChar;
-	return returnPageName;
+/**
+ * Send an AJAX delete request
+ * @param {string} action - The URL to send the request to
+ */
+async function sndDeleteReq(action) {
+    try {
+        const response = await fetch(action, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        const returnString = await response.text();
+        const brokenString = returnString.split('|');
+        const table = brokenString[0];
+        const id = brokenString[1];
+
+        // Fade out the deleted row(s) - supports vertical layout
+        const rows = document.querySelectorAll(`tr[id^="${table}_row_${id}"]`);
+        rows.forEach(row => {
+            row.style.transition = 'opacity 0.5s';
+            row.style.opacity = '0';
+            setTimeout(() => row.remove(), 500);
+        });
+    } catch (error) {
+        console.error('Delete request failed:', error);
+    }
 }
 
-/*
-unused (for now)
-function sndPostReq(url, parameters) {
-    http.open('POST', url);
-	http.onreadystatechange = handleUpdateResponse;
-	http.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
-	http.setRequestHeader("Content-length", parameters.length);
-	http.setRequestHeader("Connection", "close");
-    http.send(parameters);
-}
-*/
+/**
+ * Send an AJAX add request
+ * @param {string} action - The URL to send the request to
+ * @param {string} table - The table name
+ */
+async function sndAddReq(action, table) {
+    try {
+        await fetch(action, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
 
-/* Ajax Deleting */
-function sndDeleteReq(action) {
-    http.open('get', action);
-    http.onreadystatechange = function(){
-		if(http.readyState == 4){
-			var return_string = http.responseText;
-			var broken_string = return_string.split("|");
-			var table = broken_string[0];
-			var id = broken_string[1];
-
-			//$('#' + table + '_row_' + id).fadeOut('slow');
-			//this new line was added in v5.4 to support vertical layout
-			$("tr[id^=" + table + "_row_" + id +"]").fadeOut('slow');
-
-		}
-	}
-    http.send(null);
-}
-
-/* Ajax Adding */
-function sndAddReq(action, table) {
-    http.open('get', action);
-    http.onreadystatechange = function() {
-		if(http.readyState == 4){
-			var action2 = ajax_file + "?ajaxAction=add&table=" + table;
-			add_http.open('get', action2);
-			add_http.onreadystatechange = function(){
-				if(add_http.readyState == 4){
-					var return_string = add_http.responseText;
-					var table_html = return_string;
-					document.getElementById(table).innerHTML = table_html;
-					doValidation(); //rebind any validation functions to the new elements
-				}
-			}
-			add_http.send(null);
-		}
- 	}
-    http.send(null);
+        const action2 = `${ajaxFile}?ajaxAction=add&table=${encodeURIComponent(table)}`;
+        const response = await fetch(action2, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        const tableHtml = await response.text();
+        const tableElement = document.getElementById(table);
+        if (tableElement) {
+            tableElement.innerHTML = tableHtml;
+            doValidation(); // Rebind validation functions to new elements
+        }
+    } catch (error) {
+        console.error('Add request failed:', error);
+    }
 }
 
-/* Ajax Filtering */
-function sndFilterReq(action, table) {
-    http.open('get', action);
-    http.onreadystatechange = function(){
-		filter_http.open("get", ajax_file + "?ajaxAction=filter&table=" + table);
-		filter_http.onreadystatechange = function(){
-			if(filter_http.readyState == 4){
-				var table_html = filter_http.responseText;
-				document.getElementById(table).innerHTML = table_html;
-				//$("#" + table).html(table_html); //maybe use this method some day if helpful
-				doValidation(); //rebind any validation functions to the new elements
-			}
-		}
-		filter_http.send(null);
-	}
+/**
+ * Send an AJAX filter request
+ * @param {string} action - The URL to send the request to
+ * @param {string} table - The table name
+ */
+async function sndFilterReq(action, table) {
+    try {
+        await fetch(action, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
 
-    http.send(null);
-
+        const filterAction = `${ajaxFile}?ajaxAction=filter&table=${encodeURIComponent(table)}`;
+        const response = await fetch(filterAction, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        const tableHtml = await response.text();
+        const tableElement = document.getElementById(table);
+        if (tableElement) {
+            tableElement.innerHTML = tableHtml;
+            doValidation(); // Rebind validation functions to new elements
+        }
+    } catch (error) {
+        console.error('Filter request failed:', error);
+    }
 }
 
-/* Ajax Sorting */
-function sndSortReq(action, table) {
-    http.open('get', action);
-    http.onreadystatechange = function() {
-		if(http.readyState == 4){
-			sort_http.open('get', ajax_file + "?ajaxAction=sort&table=" + table);
-			sort_http.onreadystatechange = function(){
-				if(sort_http.readyState == 4){
-					var table_html = sort_http.responseText;
-					document.getElementById(table).innerHTML = table_html;
-					doValidation(); //rebind any validation functions to the new elements
-				}
-			}
-			sort_http.send(null);
-		}
- 	}
-    http.send(null);
+/**
+ * Send an AJAX sort request
+ * @param {string} action - The URL to send the request to
+ * @param {string} table - The table name
+ */
+async function sndSortReq(action, table) {
+    try {
+        await fetch(action, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+
+        const sortAction = `${ajaxFile}?ajaxAction=sort&table=${encodeURIComponent(table)}`;
+        const response = await fetch(sortAction, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        const tableHtml = await response.text();
+        const tableElement = document.getElementById(table);
+        if (tableElement) {
+            tableElement.innerHTML = tableHtml;
+            doValidation(); // Rebind validation functions to new elements
+        }
+    } catch (error) {
+        console.error('Sort request failed:', error);
+    }
 }
 
+/**
+ * Send a request without expecting a response
+ * @param {string} action - The URL to send the request to
+ */
 function sndReqNoResponse(action) {
-    http.open('get', action);
-    http.onreadystatechange = doNothing;
-    http.send(null);
+    fetch(action, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    }).catch(error => console.error('Request failed:', error));
 }
 
+/**
+ * Send a synchronous request (use sparingly - async version preferred)
+ * @param {string} action - The URL to send the request to
+ */
 function sndReqNoResponseChk(action) {
-    //due to speed, we do this call without async
-    http.open('get', action, false);
-    http.onreadystatechange = doNothing;
-    http.send(null);
+    // Using async version instead - synchronous XHR is deprecated
+    sndReqNoResponse(action);
 }
 
-//do NOTHING! :-)
-function doNothing(){
-}
+/**
+ * Handle update response
+ * @param {string} returnString - The response text from the server
+ */
+function handleUpdateResponse(returnString) {
+    // Check for error response
+    if (returnString.substring(0, 5) === 'error') {
+        const brokenString = returnString.split('|');
+        const id = brokenString[1];
+        const oldValue = brokenString[2];
 
+        // Display the display section, fill it with prior content
+        const showElement = document.getElementById(`${id}_show`);
+        const editElement = document.getElementById(`${id}_edit`);
+        const saveElement = document.getElementById(`${id}_save`);
 
-/* other necessary js functions */
+        if (showElement) {
+            showElement.innerHTML = oldValue;
+            showElement.style.display = '';
+        }
+        if (editElement) editElement.style.display = 'none';
+        if (saveElement) saveElement.style.display = 'none';
+    } else {
+        const brokenString = returnString.split('|');
+        const id = brokenString[0];
+        let replaceText = myStripSlashes(brokenString[1] || '');
 
-function changeSort(table, field_name, sort_direction){
-	//this should also maintain the filtering when sorting
-	sortReq = "&sort_field=" + field_name + "&sort_direction=" + sort_direction;
-	var req = getThisPage() + "table=" + table + sortReq + filterReq;
-	sndSortReq(req, table);
-	return false;
-}
+        const showElement = document.getElementById(`${id}_show`);
+        const editElement = document.getElementById(`${id}_edit`);
+        const saveElement = document.getElementById(`${id}_save`);
 
-function pageTable(params, table){
-	var req = getThisPage() + "table=" + table + params + sortReq + filterReq;
-	pageReq = params;
-	//setLoadingImage(table);
-	sndSortReq(req, table);
-	return false;
-}
-
-function setLoadingImage(table){
-	document.getElementById(table).innerHTML = loading_image_html;
-}
-
-function filterTable(obj, table, field, query_string){
-	var filter_fields = getFormValues(document.getElementById(table + '_filter_form'), '');
-    if (filter_fields != ''){
-    	var req = getThisPage() + filter_fields + "&" + query_string;
-    	filterReq = "&" + filter_fields + "&" + query_string;
-    }
-    else{
-		var req = getThisPage() + "action=unfilter";
-		filterReq = "&action=unfilter";
-	}
-
-	// function to send the filter
-	var func = function() {
-		setLoadingImage(table);
-		sndFilterReq(req, table);
-	};
-
-	// Check to see if there is already a timeout and if so...cancel it and create a new one
-	if ( obj.zid ) {
-		clearTimeout(obj.zid);
-	}
-
-	//set a timeout after typing in filter field (reduces number of calls to db)
-	obj.zid = setTimeout(func, 1200);
-}
-
-function confirmDelete(id, table, pk){
-	if(confirm('Are you sure you want to delete this item from the database? This cannot be undone.')) {
-		ajax_deleteRow(id, table, pk);
-	}
-}
-function deleteFile(field, id){
-	if(confirm('Are you sure you want to delete this file? This cannot be undone.')) {
-		location.href="?action=delete_file&field_name=" + field + "&id=" + id;
-	}
-}
-
-function ajax_deleteRow(id, table, pk){
-	var req = ajax_file + '?ajaxAction=delete&id=' + id + '&table=' + table + '&pk=' + pk;
-	sndDeleteReq(req);
-}
-
-//for handling all ajax editing
-//TODO: make function name less generic
-function handleUpdateResponse() {
-    if(http.readyState == 4){
-
-        var return_string = http.responseText;
-
-        //if there's an error in the update
-        if (return_string.substring(0,5) == 'error'){
-            var broken_string = return_string.split("|");
-            var id = broken_string[1];
-            var old_value = broken_string[2];
-
-            //only enter an alert if you want to. we removed because so many people complained
-            //window.alert('No changes made to cell.');
-
-            //display the display section, fill it with prior content
-            document.getElementById(id+'_show').innerHTML = old_value;
-            document.getElementById(id+'_show').style.display = '';
-            //hide editing and saving sections
-            document.getElementById(id+'_edit').style.display = 'none';
-            document.getElementById(id+'_save').style.display = 'none';
+        // Display the display section, fill it with new content
+        if (replaceText !== '{selectbox}') {
+            if (showElement) {
+                showElement.innerHTML = replaceText || '';
+            }
+        } else {
+            const selectbox = document.getElementById(id);
+            if (selectbox && showElement) {
+                showElement.innerHTML = selectbox.options[selectbox.selectedIndex].text;
+            }
         }
 
-        else{
-            var broken_string = return_string.split("|");
-            var id = broken_string[0];
-            var replaceText = myStripSlashes(broken_string[1]);
-
-			//display the display section, fill it with new content
-			if (replaceText != "{selectbox}"){
-				if (replaceText != null){
-					document.getElementById(id+'_show').innerHTML = replaceText;
-				}
-				else{
-					document.getElementById(id+'_show').innerHTML = "";
-				}
-			}
-			else{
-				var the_selectbox = document.getElementById(id);
-				document.getElementById(id+'_show').innerHTML = the_selectbox.options[the_selectbox.selectedIndex].text;
-			}
-            document.getElementById(id+'_show').style.display = '';
-            //hide editing and saving sections
-            document.getElementById(id+'_edit').style.display = 'none';
-            document.getElementById(id+'_save').style.display = 'none';
-        }
+        if (showElement) showElement.style.display = '';
+        if (editElement) editElement.style.display = 'none';
+        if (saveElement) saveElement.style.display = 'none';
     }
 }
 
-function getFormValues(fobj,valFunc) {
-
-	var str = "";
-	var valueArr = null;
-	var val = "";
-	var cmd = "";
-	var element_type;
-	for(var i = 0;i < fobj.elements.length;i++) {
-		element_type = fobj.elements[i].type;
-
-		if (element_type == 'text' || element_type == 'textarea'){
-			if(valFunc) {
-				//use single quotes for argument so that the value of
-				//fobj.elements[i].value is treated as a string not a literal
-				cmd = valFunc + "(" + 'fobj.elements[i].value' + ")";
-				val = eval(cmd)
-			}
-
-			str += fobj.elements[i].name + "=" + escape(fobj.elements[i].value) + "&";
-		}
-		else if(element_type == 'select-one'){
-			str += fobj.elements[i].name + "=" + fobj.elements[i].options[fobj.elements[i].selectedIndex].value + "&";
-		}
-		else if(element_type == 'checkbox'){
-			var chkValue = '';
-			if (fobj.elements[i].checked){
-				var chkValue = escape(fobj.elements[i].value);
-			}
-			str += fobj.elements[i].name + "=" + chkValue + "&";
-		}
-	}
-
-	str = str.substr(0,(str.length - 1));
-	return str;
+/**
+ * Change sort order for a table
+ * @param {string} table - The table name
+ * @param {string} fieldName - The field to sort by
+ * @param {string} sortDirection - The sort direction (asc/desc)
+ */
+function changeSort(table, fieldName, sortDirection) {
+    sortReq = `&sort_field=${encodeURIComponent(fieldName)}&sort_direction=${encodeURIComponent(sortDirection)}`;
+    const req = `${getThisPage()}table=${encodeURIComponent(table)}${sortReq}${filterReq}`;
+    sndSortReq(req, table);
+    return false;
 }
 
-function clearForm(formIdent){
-	var form, elements, i, elm;
-	form = document.getElementById ? document.getElementById(formIdent) : document.forms[formIdent];
-
-	if (document.getElementsByTagName){
-		elements = form.getElementsByTagName('input');
-		for( i=0, elm; elm=elements.item(i++); ){
-			if (elm.getAttribute('type') == "text"){
-				elm.value = '';
-			}
-			else if (elm.getAttribute('type') == "checkbox"){
-				elm.checked = false;
-			}
-		}
-		elements = form.getElementsByTagName('select');
-		for( i=0, elm; elm=elements.item(i++); ){
-			elm.options.selectedIndex=0;
-		}
-		elements = form.getElementsByTagName('textarea');
-		for( i=0, elm; elm=elements.item(i++); ){
-			elm.value = '';
-		}
-
-	}
-	else{
-		elements = form.elements;
-		for( i=0, elm; elm=elements[i++]; ){
-			if (elm.type == "text"){
-				elm.value ='';
-			}
-		}
-	}
+/**
+ * Navigate to a page in the table
+ * @param {string} params - The pagination parameters
+ * @param {string} table - The table name
+ */
+function pageTable(params, table) {
+    const req = `${getThisPage()}table=${encodeURIComponent(table)}${params}${sortReq}${filterReq}`;
+    pageReq = params;
+    sndSortReq(req, table);
+    return false;
 }
 
-/*
- * This function is to not allow non-numeric values for fields with an INT or DECIMAL datatype
- * Colaborator Juan David Ramírez
- * fenixjuano@gmail.com
+/**
+ * Set loading image in a table
+ * @param {string} table - The table name
+ */
+function setLoadingImage(table) {
+    const tableElement = document.getElementById(table);
+    if (tableElement) {
+        tableElement.innerHTML = loadingImageHtml;
+    }
+}
+
+// Debounce timer storage
+const filterTimers = new Map();
+
+/**
+ * Filter a table with debouncing
+ * @param {HTMLElement} obj - The input element
+ * @param {string} table - The table name
+ * @param {string} field - The field name
+ * @param {string} queryString - Additional query parameters
+ */
+function filterTable(obj, table, field, queryString) {
+    const filterForm = document.getElementById(`${table}_filter_form`);
+    const filterFields = filterForm ? getFormValues(filterForm, '') : '';
+
+    let req;
+    if (filterFields) {
+        req = `${getThisPage()}${filterFields}&${queryString}`;
+        filterReq = `&${filterFields}&${queryString}`;
+    } else {
+        req = `${getThisPage()}action=unfilter`;
+        filterReq = '&action=unfilter';
+    }
+
+    // Clear existing timeout
+    const existingTimer = filterTimers.get(obj);
+    if (existingTimer) {
+        clearTimeout(existingTimer);
+    }
+
+    // Set debounced filter request
+    const timer = setTimeout(() => {
+        setLoadingImage(table);
+        sndFilterReq(req, table);
+        filterTimers.delete(obj);
+    }, 1200);
+
+    filterTimers.set(obj, timer);
+}
+
+/**
+ * Confirm and delete a row
+ * @param {string|number} id - The row ID
+ * @param {string} table - The table name
+ * @param {string} pk - The primary key field name
+ */
+function confirmDelete(id, table, pk) {
+    if (confirm('Are you sure you want to delete this item from the database? This cannot be undone.')) {
+        ajaxDeleteRow(id, table, pk);
+    }
+}
+
+/**
+ * Delete a row via AJAX
+ * @param {string|number} id - The row ID
+ * @param {string} table - The table name
+ * @param {string} pk - The primary key field name
+ */
+function ajaxDeleteRow(id, table, pk) {
+    const req = `${ajaxFile}?ajaxAction=delete&id=${encodeURIComponent(id)}&table=${encodeURIComponent(table)}&pk=${encodeURIComponent(pk)}`;
+    sndDeleteReq(req);
+}
+
+// Legacy compatibility alias
+const ajax_deleteRow = ajaxDeleteRow;
+
+/**
+ * Delete a file
+ * @param {string} field - The field name
+ * @param {string|number} id - The row ID
+ */
+function deleteFile(field, id) {
+    if (confirm('Are you sure you want to delete this file? This cannot be undone.')) {
+        window.location.href = `?action=delete_file&field_name=${encodeURIComponent(field)}&id=${encodeURIComponent(id)}`;
+    }
+}
+
+/**
+ * Get form values as query string
+ * @param {HTMLFormElement} fobj - The form element
+ * @param {string} valFunc - Optional validation function name (deprecated)
+ * @returns {string} The form values as a query string
+ */
+function getFormValues(fobj, valFunc) {
+    const params = new URLSearchParams();
+
+    for (const element of fobj.elements) {
+        const type = element.type;
+        const name = element.name;
+
+        if (!name) continue;
+
+        if (type === 'text' || type === 'textarea') {
+            params.append(name, element.value);
+        } else if (type === 'select-one') {
+            params.append(name, element.options[element.selectedIndex]?.value || '');
+        } else if (type === 'checkbox') {
+            params.append(name, element.checked ? element.value : '');
+        }
+    }
+
+    return params.toString();
+}
+
+/**
+ * Clear a form
+ * @param {string} formIdent - The form ID
+ */
+function clearForm(formIdent) {
+    const form = document.getElementById(formIdent);
+    if (!form) return;
+
+    // Clear text inputs
+    form.querySelectorAll('input[type="text"]').forEach(el => el.value = '');
+
+    // Uncheck checkboxes
+    form.querySelectorAll('input[type="checkbox"]').forEach(el => el.checked = false);
+
+    // Reset selects
+    form.querySelectorAll('select').forEach(el => el.selectedIndex = 0);
+
+    // Clear textareas
+    form.querySelectorAll('textarea').forEach(el => el.value = '');
+}
+
+/**
+ * Validate numeric input
+ * @param {KeyboardEvent} evento - The keyboard event
+ * @param {HTMLElement} elemento - The input element
+ * @param {string} dec - Whether decimals are allowed ('y' or 'n')
+ * @returns {boolean} Whether the input is valid
  */
 function fn_validateNumeric(evento, elemento, dec) {
-    var valor=elemento.value;
-    var charWich=evento.which;
-    var charCode=evento.keyCode;
-    if(charWich==null){
-        charWich=charCode;
-    }
-    //8 is backspace, 9 is tab, 37 is left arrow, 39 is right arrow, 46 is delete, 13 is enter
-    if ( (charWich>=48 && charWich<=57) || charCode==8 || charCode==9 || charCode==37 || charCode==39 || charCode==46 || charWich==46 || charWich==13) {
-        if(dec=="n" && charWich == 46){
+    const valor = elemento.value;
+    const keyCode = evento.which || evento.keyCode;
+
+    // Allow: backspace, tab, left/right arrows, delete, enter
+    const allowedKeys = [8, 9, 37, 39, 46, 13];
+    const isNumber = keyCode >= 48 && keyCode <= 57;
+    const isDecimalPoint = keyCode === 46 || evento.key === '.';
+
+    if (isNumber || allowedKeys.includes(keyCode) || isDecimalPoint) {
+        // Don't allow decimal if dec='n'
+        if (dec === 'n' && isDecimalPoint) {
             return false;
         }
-        else{
-            if(valor.indexOf('.')!=-1 && charWich==46){
-                return false;
-            }
+        // Don't allow multiple decimal points
+        if (valor.includes('.') && isDecimalPoint) {
+            return false;
         }
         return true;
     }
-    else{
-        return false;
-    }
+
+    return false;
 }
 
-
+/**
+ * Escape quotes in a string
+ * @param {string} str - The string to escape
+ * @returns {string} The escaped string
+ */
 function myAddSlashes(str) {
-    str=str.replace(/\"/g,'\\"');
-    return str;
+    return str.replace(/"/g, '\\"');
 }
 
+/**
+ * Unescape quotes in a string
+ * @param {string} str - The string to unescape
+ * @returns {string} The unescaped string
+ */
 function myStripSlashes(str) {
-    str=str.replace(/\\'/g,'\'');
-    str=str.replace(/\\"/g,'"');
-    return str;
+    if (!str) return '';
+    return str.replace(/\\'/g, "'").replace(/\\"/g, '"');
 }
 
-var prior_class = '';
-function hover(obj){
-    //obj.className='class_hover';
+/**
+ * Hover effect for table cells
+ * @param {HTMLElement} obj - The element to apply hover to
+ */
+function hover(obj) {
     obj.style.backgroundColor = '#FFFF99';
-
 }
 
-function unHover(obj){
+/**
+ * Remove hover effect
+ * @param {HTMLElement} obj - The element to remove hover from
+ */
+function unHover(obj) {
     obj.className = '';
 }
 
+/**
+ * Set all checkboxes with a given name
+ * @param {string} str - The checkbox name
+ * @param {boolean} ck - The checked state to set
+ */
 function setAllCheckboxes(str, ck) {
-	var ckboxes = document.getElementsByName(str);
-	for (var i=0; i < ckboxes.length; i++){
-		if (ckboxes[i].checked == ck) {
-			ckboxes[i].checked = ck;
-			ckboxes[i].click();
-		}
-	}
+    const ckboxes = document.getElementsByName(str);
+    for (const checkbox of ckboxes) {
+        if (checkbox.checked === ck) {
+            checkbox.checked = ck;
+            checkbox.click();
+        }
+    }
 }
 
-//I don't know why javascript doesn't have this function built into the language!
-Array.prototype.findIndex = function(value){
-	var ctr = "";
-	for (var i=0; i < this.length; i++) {
-		// use === to check for Matches. ie., identical (===), ;
-		if (this[i] == value) {
-			return i;
-		}
-	}
-	return ctr;
-};
-
-if('function' != typeof Array.prototype.splice) {
-	Array.prototype.splice = function(s, dC) {
-		s = +s || 0;
-		var a = [],
-		n = this.length,
-		nI = Math.min(arguments.length - 2, 0), i, j;
-		s = (0 > s) ? Math.max(s + n, 0) : Math.min(s, n);
-		dC = Math.min(Math.max(+dC || 0, 0), n - s);
-		for(i = 0; i < dC; ++i) {a[i] = this[s + i];}
-		if(nI < dC) {
-			for(i = s, j = n - dC; i < j; ++i) {
-				this[i + nI] = this[i + dC];
-			}
-		} else if(nI > dC) {
-			for(i = n - 1, j = s + dC; i >= j; --i) {
-				this[i + nI - dC] = this[i];
-			}
-		}
-		for(i = s, j = 2; j < nI; ++i, ++j) {this[i] = arguments[j];}
-		this.length = n - dC + nI;
-		return a;
-	};
+// Legacy compatibility: Add findIndex to Array if not exists
+if (typeof Array.prototype.findIndex !== 'function') {
+    Array.prototype.findIndex = function(value) {
+        for (let i = 0; i < this.length; i++) {
+            if (this[i] == value) {
+                return i;
+            }
+        }
+        return '';
+    };
 }
 
-/* javascript_functions.js - last updated 10/1/2011 */
+/* javascript_functions.js - Modernized version 7.0 */

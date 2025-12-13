@@ -1,27 +1,29 @@
 <?php
 	/************************************************************************/
-	/* ajaxCRUD.class.php	v6.2                                            */
+	/* ajaxCRUD.class.php	v7.0                                            */
 	/* ===========================                                          */
-	/* Copyright (c) 2011 by Loud Canvas Media (arts@loudcanvas.com)        */
+	/* Originally (c) 2011 by Loud Canvas Media (arts@loudcanvas.com)       */
 	/* http://www.ajaxcrud.com by http://www.loudcanvas.com                 */
+	/*                                                                      */
+	/* Modernized for PHP 8.1+ with PDO, ES6+ JavaScript, security fixes    */
 	/*                                                                      */
 	/* This program is free software. You can redistribute it and/or modify */
 	/* it under the terms of the GNU General Public License as published by */
 	/* the Free Software Foundation; either version 2 of the License.       */
 	/************************************************************************/
 	# thanks to the following for help on v6.0:
-	# Mariano Montañez Ureta, from Argentina; twitter: @nanomo
+	# Mariano Montaï¿½ez Ureta, from Argentina; twitter: @nanomo
 	# Jing Ling, New Hampshire
 
 	define('EXECUTING_SCRIPT', $_SERVER['PHP_SELF']);
 
-	$customAction = $_REQUEST['customAction'];
-    if ($customAction != ""){
-		if ($customAction == 'exportToCSV'){
-			$csvData = $_REQUEST['tableData'];
-			$fileName = $_REQUEST['fileName'];
+	$customAction = $_REQUEST['customAction'] ?? '';
+    if ($customAction !== ''){
+		if ($customAction === 'exportToCSV'){
+			$csvData = $_REQUEST['tableData'] ?? '';
+			$fileName = preg_replace('/[^a-zA-Z0-9_\-\.]/', '', $_REQUEST['fileName'] ?? 'export.csv');
 			header("Content-type: application/csv");
-			header("Content-Disposition: attachment; filename=$fileName");
+			header("Content-Disposition: attachment; filename=" . $fileName);
 			header("Pragma: no-cache");
 			header("Expires: 0");
 			echo $csvData;
@@ -30,79 +32,73 @@
 	}
 
 	#this top part is for the ajax actions themselves. the class is below
-    $ajaxAction = $_REQUEST['ajaxAction'];
-    if ($ajaxAction != ""){
+    $ajaxAction = $_REQUEST['ajaxAction'] ?? '';
+    if ($ajaxAction !== ''){
 
 		# these lines make sure caching do not cause ajax saving/displaying issues
 		header("Cache-Control: no-cache, must-revalidate"); //this is why ajaxCRUD.class.php must be before any other headers (html) are outputted
 		# a date in the past
 		header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
 
-		$table      = $_REQUEST['table'];
-		$pk         = $_REQUEST['pk'];
-		$field      = trim($_REQUEST['field']);
-		$id         = $_REQUEST['id'];
-		$val        = $_REQUEST['val'];
-		$table_num  = $_REQUEST['table_num'];
+		// Sanitize table/field names to prevent SQL injection (only allow alphanumeric and underscore)
+		$table      = escapeIdentifier($_REQUEST['table'] ?? '');
+		$pk         = escapeIdentifier($_REQUEST['pk'] ?? '');
+		$field      = escapeIdentifier(trim($_REQUEST['field'] ?? ''));
+		$id         = $_REQUEST['id'] ?? '';
+		$val        = $_REQUEST['val'] ?? '';
+		$table_num  = $_REQUEST['table_num'] ?? '';
 
-		if (!is_numeric($id)){
-			$sql_id = "\"$id\"";
-		}
-		else{
-			$sql_id = $id;
+		if ($ajaxAction === 'add'){
+			echo $_SESSION[$table] ?? '';
 		}
 
-		if ($ajaxAction == 'add'){
-			echo $_SESSION[$table];
+		if ($ajaxAction === 'filter'){
+			echo $_SESSION[$table] ?? '';
 		}
 
-		if ($ajaxAction == 'filter'){
-			echo $_SESSION[$table];
+		if ($ajaxAction === 'sort'){
+			echo $_SESSION[$table] ?? '';
 		}
 
-		if ($ajaxAction == 'sort'){
-			echo $_SESSION[$table];
+		if ($ajaxAction === 'getRowCount'){
+			echo $_SESSION['row_count'] ?? 0;
 		}
 
-		if ($ajaxAction == 'getRowCount'){
-			echo $_SESSION['row_count'];
-		}
+		if ($ajaxAction === 'update'){
+			// Validate that we have required fields
+			if ($table && $pk && $field && $id !== '') {
+				// Check to see if record exists using prepared statement
+				$row_current_value = q1("SELECT `$pk` FROM `$table` WHERE `$pk` = ?", [$id]);
+				if ($row_current_value === null || $row_current_value === ''){
+					qr("INSERT INTO `$table` (`$pk`) VALUES (?)", [$id]);
+				}
 
-		if ($ajaxAction == 'update'){
-			//$val = str_replace("<P>","<br /><br />", $val);
-			//$val = str_replace("<p>","<br /><br />", $val);
+				// Update using prepared statement
+				$success = qr("UPDATE `$table` SET `$field` = ? WHERE `$pk` = ?", [$val, $id]);
 
-			//$val = str_replace("</P>","", $val);
-			//$val = str_replace("</p>","", $val);
+				if ($val === '') $val = "&nbsp;&nbsp;";
 
-			//check to see if  record exists
-			$row_current_value = q1("SELECT $pk FROM $table WHERE $pk = $sql_id");
-			if ($row_current_value  == ''){
-				qr("INSERT INTO $table ($pk) VALUES (\"$id\")");
-			}
+				// When updating, we use the Table name, Field name, & the Primary Key (id) to feed back to client-side-processing
+				$prefield = trim($table . $field . $id);
 
-			$success = qr("UPDATE $table SET $field = \"$val\" WHERE $pk = $sql_id");
+				if (isset($_REQUEST['dropdown_tbl'])){
+					$val = "{selectbox}";
+				}
 
-			if ($val == '') $val = "&nbsp;&nbsp;";
-
-			//when updating, we use the Table name, Field name, & the Primary Key (id) to feed back to client-side-processing
-			$prefield = trim($table . $field . $id);
-
-			if (isset($_REQUEST['dropdown_tbl'])){
-				$val = "{selectbox}";
-			}
-
-			if ($success){
-				echo $prefield . "|" . stripslashes($val);
-			}
-			else{
-				echo "error|" . $prefield . "|" . stripslashes($val);
+				if ($success){
+					echo $prefield . "|" . $val;
+				}
+				else{
+					echo "error|" . $prefield . "|" . $val;
+				}
 			}
 		}
 
-		if ($ajaxAction == 'delete'){
-			qr("DELETE FROM $table WHERE $pk = $sql_id");
-			echo $table . "|" . $id;
+		if ($ajaxAction === 'delete'){
+			if ($table && $pk && $id !== '') {
+				qr("DELETE FROM `$table` WHERE `$pk` = ?", [$id]);
+				echo $table . "|" . $id;
+			}
 		}
 
 		exit();
@@ -767,9 +763,9 @@ class ajaxCRUD{
 
 		$item = $this->item;
 
-		if ($action == 'delete' && $_REQUEST['id'] != ''){
+		if ($action === 'delete' && ($_REQUEST['id'] ?? '') !== ''){
 			$delete_id = $_REQUEST['id'];
-            $success = qr("DELETE FROM $this->db_table WHERE $this->db_table_pk = \"$delete_id\"");
+            $success = qr("DELETE FROM `{$this->db_table}` WHERE `{$this->db_table_pk}` = ?", [$delete_id]);
 			if ($success){
 				$report_msg[] = "$item Deleted";
 			}
@@ -779,119 +775,102 @@ class ajaxCRUD{
 		}//action = delete
 
 		#adding new item (via traditional way, non-ajax -- note: this is the ONLY way files can be uploaded with ajaxCRUD)
-		if ($action == 'add'){
+		if ($action === 'add'){
 
             //this if condition is so MULTIPLE ajaxCRUD tables can be used on the same page.
-            if ($_REQUEST['table'] == $this->db_table){
-
-                //for sql insert statement
-                $submitted_values = array();
+            if (($_REQUEST['table'] ?? '') === $this->db_table){
 
                 //for callback function (if defined)
                 $submitted_array = array();
 
                 //this new row has (a) file(s) coming with it
-                $uploads_on = $_REQUEST['uploads_on'];
-                if ($uploads_on == 'true' && $_FILES){
+                $uploads_on = $_REQUEST['uploads_on'] ?? '';
+                if ($uploads_on === 'true' && $_FILES){
                     $uploads_on = true;
                 }
 
+                // Build field => value mapping
                 foreach($this->fields as $field){
-
                     $submitted_value_cleansed = "";
-                    if ($_REQUEST[$field] == ''){
+                    $field_value = $_REQUEST[$field] ?? '';
+                    if ($field_value === ''){
                         if ($this->fieldIsInt($this->getFieldDataType($field)) || $this->fieldIsDecimal($this->getFieldDataType($field))){
                             $submitted_value_cleansed = 0;
                         }
                     }
                     else{
-                        $submitted_value_cleansed = $_REQUEST[$field];
+                        $submitted_value_cleansed = $field_value;
                     }
-
-
-                    $submitted_values[] = $submitted_value_cleansed;
-                    //also used for callback function
                     $submitted_array[$field] = $submitted_value_cleansed;
                 }
 
-                //get rid of the primary key in the fields column
-                if (!$this->on_add_specify_primary_key){
-                    unset($submitted_values[0]);    //assumes the primary key is the FIRST field in the array
-                }
-
-                //for adding values to the row which were not in the ADD row table - but are specified by ADD on INSERT
+                // For adding values to the row which were not in the ADD row table - but are specified by ADD on INSERT
                 if (count($this->add_values) > 0){
                     foreach ($this->add_values as $add_value){
                         $field_name = $add_value[0];
                         $the_add_value = $add_value[1];
-
-                        if ($submitted_array[$field_name] == ''){
+                        if (($submitted_array[$field_name] ?? '') === ''){
                             $submitted_array[$field_name] = $the_add_value;
                         }
-
-                        //reshuffle numeric indexed array
-                        unset($submitted_values);
-                        $submitted_values = array();
-                        foreach($submitted_array as $field){
-                            $submitted_values[] = $field;
-                        }
-
-                        //get rid of the primary key in the fields column
-                        if (!$this->on_add_specify_primary_key){
-                            unset($submitted_values[0]);    //assumes the primary key is the FIRST field in the array
-                        }
-
                     }
                 }
 
-                //wrap each field in quotes
-                $string_submitted_values = "\"" . implode("\",\"", $submitted_values) . "\"";;
+                // Build the INSERT query with prepared statements
+                $fields_to_insert = [];
+                $values_to_insert = [];
+                $placeholders = [];
 
-
-                //for getting datestamp of new row for mysql's "NOW" to work
-                $string_submitted_values = str_replace('"NOW()"', 'NOW()', $string_submitted_values);
-
-                //print_r($submitted_values);
-
-                if ($string_submitted_values != ''){
-                    if (!$this->on_add_specify_primary_key && $this->primaryKeyAutoIncrement){
-                        //don't allow the primary key to be inputted
-                        $fields_array_without_pk = $this->fields;
-                        unset($fields_array_without_pk[0]);   //assumes the primary key is the FIRST field in the array
-                        $string_fields_without_pk = implode(",", $fields_array_without_pk);
-
-                        $query = "INSERT INTO $this->db_table($string_fields_without_pk) VALUES ($string_submitted_values)";
+                foreach($this->fields as $field){
+                    // Skip primary key if auto-increment
+                    if (!$this->on_add_specify_primary_key && $this->primaryKeyAutoIncrement && $field === $this->db_table_pk){
+                        continue;
                     }
-                    else{
-                        if (!$this->primaryKeyAutoIncrement){
-                            $primary_key_value = q1("SELECT MAX($this->db_table_pk) FROM $this->db_table");
-                            if ($primary_key_value > 0) $primary_key_value++;
-                            $primary_key_value = $primary_key_value . ", ";
-                        }
 
-                        $string_fields_with_pk = implode(",", $this->fields);
-                        $query = "INSERT INTO $this->db_table($string_fields_with_pk) VALUES ($primary_key_value $string_submitted_values)";
+                    $fields_to_insert[] = "`$field`";
+                    $value = $submitted_array[$field] ?? '';
+
+                    // Handle NOW() for dates
+                    if (strtoupper($value) === 'NOW()'){
+                        $placeholders[] = 'NOW()';
+                    } else {
+                        $placeholders[] = '?';
+                        $values_to_insert[] = $value;
                     }
-                    $success = qr($query);
+                }
+
+                if (count($fields_to_insert) > 0){
+                    // Handle non-auto-increment primary key
+                    if (!$this->primaryKeyAutoIncrement && !$this->on_add_specify_primary_key){
+                        $primary_key_value = q1("SELECT MAX(`{$this->db_table_pk}`) FROM `{$this->db_table}`");
+                        $primary_key_value = ($primary_key_value > 0) ? $primary_key_value + 1 : 1;
+                        array_unshift($fields_to_insert, "`{$this->db_table_pk}`");
+                        array_unshift($placeholders, '?');
+                        array_unshift($values_to_insert, $primary_key_value);
+                    }
+
+                    $fields_str = implode(', ', $fields_to_insert);
+                    $placeholders_str = implode(', ', $placeholders);
+                    $query = "INSERT INTO `{$this->db_table}` ($fields_str) VALUES ($placeholders_str)";
+
+                    $success = qr($query, $values_to_insert);
 
                     if ($success){
-                        $insert_id = mysql_insert_id();
-                        //$_SESSION[insert_id] = $insert_id;
+                        $insert_id = lastInsertId();
 
                         $report_msg[] = "$item Added";
 
                         if ($uploads_on){
                             foreach($this->file_uploads as $field_name){
-                                $file_dest  = $this->file_upload_info[$field_name][destination_folder];
+                                $file_dest = $this->file_upload_info[$field_name]['destination_folder'] ?? '';
 
-                                if ($_FILES[$field_name]['name'] != ''){
+                                if (($_FILES[$field_name]['name'] ?? '') !== ''){
                                     $this->uploadFile($insert_id, $field_name, $file_dest);
                                 }
                             }
                         }
 
-                        if ($this->onAddExecuteCallBackFunction != ''){
-                            $submitted_array[id] = $insert_id;
+                        if ($this->onAddExecuteCallBackFunction !== ''){
+                            $submitted_array['id'] = $insert_id;
                             $submitted_array[$this->db_table_pk] = $insert_id;
                             call_user_func($this->onAddExecuteCallBackFunction, $submitted_array);
                         }
@@ -908,15 +887,15 @@ class ajaxCRUD{
             }//if POST parameter 'table' == db_table
 		}//action = add
 
-        if ($action == 'upload' && $_REQUEST['field_name'] && $_REQUEST['id'] != ''){
+        if ($action === 'upload' && ($_REQUEST['field_name'] ?? '') && ($_REQUEST['id'] ?? '') !== ''){
             $update_id      = $_REQUEST['id'];
-            $file_field     = $_REQUEST['field_name'];
-            $upload_folder  = $this->file_upload_info[$file_field][destination_folder];
+            $file_field     = escapeIdentifier($_REQUEST['field_name']);
+            $upload_folder  = $this->file_upload_info[$file_field]['destination_folder'] ?? '';
 
             $success = $this->uploadFile($update_id, $file_field, $upload_folder);
 
             if ($success){
-                $report_msg[] = "File Uploaded Sucessfully.";
+                $report_msg[] = "File Uploaded Successfully.";
             }
             else{
                 $error_msg[] = "There was an error uploading your file (or none was selected).";
@@ -924,24 +903,25 @@ class ajaxCRUD{
 
         }//action = upload
 
-        if ($action == 'delete_file' && $_REQUEST['field_name'] && $_REQUEST['id'] != ''){
+        if ($action === 'delete_file' && ($_REQUEST['field_name'] ?? '') && ($_REQUEST['id'] ?? '') !== ''){
             $delete_id      = $_REQUEST['id'];
-            $file_field     = $_REQUEST['field_name'];
-            $upload_folder  = $_REQUEST['upload_folder'];
+            $file_field     = escapeIdentifier($_REQUEST['field_name']);
 
-            $filename = q1("SELECT $file_field FROM $this->db_table WHERE $this->db_table_pk = $delete_id");
-            $success = qr("UPDATE $this->db_table SET $file_field = \"\" WHERE $this->db_table_pk = $delete_id");
+            $filename = q1("SELECT `$file_field` FROM `{$this->db_table}` WHERE `{$this->db_table_pk}` = ?", [$delete_id]);
+            $success = qr("UPDATE `{$this->db_table}` SET `$file_field` = '' WHERE `{$this->db_table_pk}` = ?", [$delete_id]);
 
             if ($success){
-                $file_dest  = $this->file_upload_info[$file_field][destination_folder];
+                $file_dest = $this->file_upload_info[$file_field]['destination_folder'] ?? '';
 
-                unlink($file_dest . $filename);
-                $report_msg[] = "File Deleted Sucessfully.";
+                if ($filename && $file_dest && file_exists($file_dest . $filename)) {
+                    unlink($file_dest . $filename);
+                }
+                $report_msg[] = "File Deleted Successfully.";
 
-                if ($this->onDeleteFileExecuteCallBackFunction != ''){
+                if ($this->onDeleteFileExecuteCallBackFunction !== ''){
                     $delete_file_array = array();
-                    $delete_file_array[id]        = $delete_id;
-                    $delete_file_array[field]     = $file_field;
+                    $delete_file_array['id']    = $delete_id;
+                    $delete_file_array['field'] = $file_field;
                     call_user_func($this->onDeleteFileExecuteCallBackFunction, $delete_file_array);
                 }
 
@@ -1013,7 +993,7 @@ class ajaxCRUD{
 
 					$selected_dropdown_text = "--"; //in case value is blank
 					if ($cell_data != ""){
-						$selected_dropdown_text = q1("SELECT $category_field_name FROM $category_table_name WHERE $category_table_pk = \"" . $cell_value . "\"");
+						$selected_dropdown_text = q1("SELECT `$category_field_name` FROM `$category_table_name` WHERE `$category_table_pk` = ?", [$cell_value]);
 						//echo "field: $field - $selected_dropdown_text <br />\n";
 						$cell_data = $selected_dropdown_text;
 					}
@@ -1048,7 +1028,7 @@ class ajaxCRUD{
                     $new_filename = $row_id . "_" . $new_filename;
                 }
                 else{
-                    @$db_value_to_append = q1("SELECT $this->filename_append_field FROM $this->db_table WHERE $this->db_table_pk = $row_id");
+                    $db_value_to_append = q1("SELECT `{$this->filename_append_field}` FROM `{$this->db_table}` WHERE `{$this->db_table_pk}` = ?", [$row_id]);
                     if ($db_value_to_append != ""){
                         $new_filename = $db_value_to_append . "_" . $new_filename;
                     }
@@ -1062,15 +1042,15 @@ class ajaxCRUD{
         $success = move_uploaded_file ($tmpName, $destination);
 
         if ($success){
-            $update_success = qr("UPDATE $this->db_table SET $file_field = \"$new_filename\" WHERE $this->db_table_pk = $row_id");
+            $update_success = qr("UPDATE `{$this->db_table}` SET `$file_field` = ? WHERE `{$this->db_table_pk}` = ?", [$new_filename, $row_id]);
 
-            if ($this->onFileUploadExecuteCallBackFunction != ''){
+            if ($this->onFileUploadExecuteCallBackFunction !== ''){
                 $file_info_array = array();
-                $file_info_array[id]        = $row_id;
-                $file_info_array[field]     = $file_field;
-                $file_info_array[fileName]  = $new_filename;
-                $file_info_array[fileSize]  = $fileSize;
-                $file_info_array[fldType]   = $fldType;
+                $file_info_array['id']        = $row_id;
+                $file_info_array['field']     = $file_field;
+                $file_info_array['fileName']  = $new_filename;
+                $file_info_array['fileSize']  = $fileSize;
+                $file_info_array['fileType']  = $fileType;
                 call_user_func($this->onFileUploadExecuteCallBackFunction, $file_info_array);
             }
 
@@ -1220,7 +1200,7 @@ class ajaxCRUD{
                 $whereclause = $this->category_whereclause_array[$key];
             }
 
-            $dropdown_array[] = q("SELECT $category_table_pk, $category_field_name FROM $category_table $whereclause $order_by");
+            $dropdown_array[] = q("SELECT `$category_table_pk`, `$category_field_name` FROM `$category_table` $whereclause $order_by");
 		}
 
         $top_html .= "<div id='$this->db_table'>\n";
@@ -1425,7 +1405,7 @@ class ajaxCRUD{
 
                             $selected_dropdown_text = "--"; //in case value is blank
                             if ($cell_data != ""){
-                                $selected_dropdown_text = q1("SELECT $category_field_name FROM $category_table_name WHERE $category_table_pk = \"" . $cell_value . "\"");
+                                $selected_dropdown_text = q1("SELECT `$category_field_name` FROM `$category_table_name` WHERE `$category_table_pk` = ?", [$cell_value]);
                                 //echo "field: $field - $selected_dropdown_text <br />\n";
                             }
                             if (!$this->fieldInArray($field, $this->uneditable_fields)){
@@ -2077,8 +2057,8 @@ class paging{
         return $record;
 	}
 	function myRecordCount($query){
-		$rs      			= mysql_query($query) or die(mysql_error()."<br>".$query);
-		$rsCount 			= mysql_num_rows($rs);
+		$rs = q($query);
+		$rsCount = is_array($rs) ? count($rs) : 0;
 		$this->pRecordCount = $rsCount;
 		unset($rs);
 		return $rsCount;
