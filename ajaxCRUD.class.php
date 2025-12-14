@@ -231,6 +231,24 @@ class ajaxCRUD{
 	// holds the field names of columns that will have a "check all" checkbox
 	var $checkboxall = array();
 
+	// radio button options. key is field name, value is array of options
+	var $radiobuttons = array();
+
+	// range slider configuration. key is field name, value is array with min, max, step
+	var $range_config = array();
+
+	// autocomplete configuration. key is field name, value is array with source table info
+	var $autocomplete = array();
+
+	// multi-select configuration. key is field name, value is array of options
+	var $multiselect = array();
+
+	// rich text editor fields
+	var $richtext = array();
+
+	// password fields (will show masked input)
+	var $password_fields = array();
+
     //values to be set to a particular field when a new row is added. the array is set as $field_name => $add_value
     var $add_values = array();
 
@@ -286,7 +304,7 @@ class ajaxCRUD{
 
 	// Constructor
     //by default ajaxCRUD assumes all necessary files are in the same dir as the script calling it (eg $ajaxcrud_root = "")
-    function ajaxCRUD($item, $db_table, $db_table_pk, $ajaxcrud_root = "") {
+    function __construct($item, $db_table, $db_table_pk, $ajaxcrud_root = "") {
 
         //global variable - for allowing multiple ajaxCRUD tables on one page
         global $num_ajaxCRUD_tables_instantiated;
@@ -351,11 +369,11 @@ class ajaxCRUD{
 
 		//for filtering if there is a request parameter
 		$count_filtered = 0;
-		$action = $_REQUEST['action'];
+		$action = $_REQUEST['action'] ?? '';
         foreach ($this->fields as $field){
-			if ($_REQUEST[$field] != '' && ($action != 'add' && $action != 'delete' && $action != 'update' && $action != 'upload' && $action != 'delete_file')){
+			if (($_REQUEST[$field] ?? '') != '' && ($action != 'add' && $action != 'delete' && $action != 'update' && $action != 'upload' && $action != 'delete_file')){
 				$filter_field = $field;
-				$filter_value = $_REQUEST[$field];
+				$filter_value = $_REQUEST[$field] ?? '';
 				$filter_where_clause = "WHERE $filter_field LIKE \"%" . $filter_value . "%\"";
 				$this->addWhereClause($filter_where_clause);
 				$this->filtered_table = true;
@@ -535,8 +553,101 @@ class ajaxCRUD{
 		$this->checkbox[$field] = $new_array;
 	}
 
+	/**
+	 * Define a toggle switch (modern alternative to checkbox)
+	 * @param string $field Field name
+	 * @param mixed $value_on Value when on/checked
+	 * @param mixed $value_off Value when off/unchecked
+	 */
+	function defineToggle($field, $value_on="1", $value_off="0"){
+		$new_array = array($value_on, $value_off, 'toggle' => true);
+		$this->checkbox[$field] = $new_array;
+	}
+
 	function showCheckboxAll($field, $display_data) {
 		$this->checkboxall[$field] = $display_data;
+	}
+
+	/**
+	 * Define radio buttons for a field
+	 * @param string $field Field name
+	 * @param array $options Array of value => label pairs
+	 * @param bool $inline Display inline (horizontal) or stacked (vertical)
+	 */
+	function defineRadioButtons($field, $options, $inline = true){
+		$this->radiobuttons[$field] = [
+			'options' => $options,
+			'inline' => $inline
+		];
+	}
+
+	/**
+	 * Define a range slider for a field
+	 * @param string $field Field name
+	 * @param int|float $min Minimum value
+	 * @param int|float $max Maximum value
+	 * @param int|float $step Step increment
+	 * @param bool $show_value Show current value label
+	 */
+	function defineRange($field, $min = 0, $max = 100, $step = 1, $show_value = true){
+		$this->range_config[$field] = [
+			'min' => $min,
+			'max' => $max,
+			'step' => $step,
+			'show_value' => $show_value
+		];
+	}
+
+	/**
+	 * Define autocomplete for a field from another table
+	 * @param string $field Field name
+	 * @param string $source_table Table to search in
+	 * @param string $display_field Field to display/search
+	 * @param string $value_field Field to store (usually PK)
+	 * @param int $min_chars Minimum characters before search
+	 */
+	function defineAutocomplete($field, $source_table, $display_field, $value_field = null, $min_chars = 2){
+		$this->autocomplete[$field] = [
+			'source_table' => $source_table,
+			'display_field' => $display_field,
+			'value_field' => $value_field ?: $display_field,
+			'min_chars' => $min_chars
+		];
+	}
+
+	/**
+	 * Define multi-select dropdown for a field
+	 * @param string $field Field name
+	 * @param array $options Array of value => label pairs
+	 * @param string $separator Storage separator (default comma)
+	 */
+	function defineMultiSelect($field, $options, $separator = ','){
+		$this->multiselect[$field] = [
+			'options' => $options,
+			'separator' => $separator
+		];
+	}
+
+	/**
+	 * Enable rich text editor for a field
+	 * @param string $field Field name
+	 * @param array $toolbar Toolbar options (default: basic)
+	 */
+	function setRichText($field, $toolbar = 'basic'){
+		$this->richtext[$field] = [
+			'toolbar' => $toolbar
+		];
+	}
+
+	/**
+	 * Mark a field as password type
+	 * @param string $field Field name
+	 * @param bool $confirm Require confirmation field
+	 */
+	function setPassword($field, $confirm = false){
+		$this->password_fields[$field] = [
+			'confirm' => $confirm
+		];
 	}
 
     function displayAs($field, $the_field_name){
@@ -751,7 +862,7 @@ class ajaxCRUD{
     }
 
     function doCRUDAction(){
-        if ($_REQUEST['action'] != ''){
+        if (($_REQUEST['action'] ?? '') != ''){
             $this->doAction($_REQUEST['action']);
         }
     }
@@ -1020,8 +1131,8 @@ class ajaxCRUD{
 
         $new_filename = make_filename_safe($fileName);
         if ($this->filename_append_field != ""){
-            if ($_REQUEST[$this->filename_append_field] != ''){
-                $new_filename = $_REQUEST[$this->filename_append_field] . "_" . $new_filename;
+            if (($_REQUEST[$this->filename_append_field] ?? '') != ''){
+                $new_filename = ($_REQUEST[$this->filename_append_field] ?? '') . "_" . $new_filename;
             }
             else{
                 if ($this->filename_append_field == $this->db_table_pk){
@@ -1080,9 +1191,9 @@ class ajaxCRUD{
            Note: this cancels out default sorting set by addOrderBy()
         */
 
-        if ($this->db_table == $_REQUEST['table'] && $_REQUEST['sort_field'] != ''){
+        if ($this->db_table == ($_REQUEST['table'] ?? '') && ($_REQUEST['sort_field'] ?? '') != ''){
             $sort_field = $_REQUEST['sort_field'];
-            $user_sort_order_direction = $_REQUEST['sort_direction'];
+            $user_sort_order_direction = $_REQUEST['sort_direction'] ?? 'asc';
 
             if ($user_sort_order_direction == 'asc'){
                 $this->sort_direction = "desc";
@@ -1110,7 +1221,7 @@ class ajaxCRUD{
         }
 
         if ($this->doActionOnShowTable){
-            if ($_REQUEST['action'] != ''){
+            if (($_REQUEST['action'] ?? '') != ''){
                 $this->doAction($_REQUEST['action']);
             }
         }
@@ -1132,7 +1243,7 @@ class ajaxCRUD{
                 $textbox_size = $this->ajaxFilterBoxSize[$filter_field];
 
                 $filter_value = "";
-                if ($_REQUEST[$filter_field] != ''){
+                if (($_REQUEST[$filter_field] ?? '') != ''){
                 	$filter_value = $_REQUEST[$filter_field];
                 }
 
@@ -1154,7 +1265,7 @@ class ajaxCRUD{
         $sql = "SELECT * FROM " . $this->db_table . $this->sql_where_clause . $this->sql_order_by;
 
         if ($this->showPaging){
-            $pageid        = $_GET['pid'];//Get the pid value
+            $pageid        = $_GET['pid'] ?? null;//Get the pid value
             if(intval($pageid) == 0) $pageid  = 1;
             $Paging        = new paging();
             $Paging->tableName = $this->db_table;
@@ -1162,7 +1273,7 @@ class ajaxCRUD{
             $total_records = $Paging->myRecordCount($sql);//count records
             $totalpage     = $Paging->processPaging($this->limit,$pageid);
             $rows          = $Paging->startPaging($sql);//get records in the databse
-            $links         = $Paging->pageLinks(basename($PHP_SELF));//1234 links
+            $links         = $Paging->pageLinks(basename($_SERVER['PHP_SELF'] ?? ''));//1234 links
             unset($Paging);
         }
         else{
@@ -1281,7 +1392,7 @@ class ajaxCRUD{
 
                 if ($this->showCheckbox && $this->orientation != 'vertical'){
                     $checkbox_selected = "";
-                    if ($id == $_REQUEST[$this->db_table_pk]) $checkbox_selected = " checked";
+                    if ($id == ($_REQUEST[$this->db_table_pk] ?? '')) $checkbox_selected = " checked";
                     $table_html .= "<td><input type='checkbox' $checkbox_selected onClick=\"window.location ='" . $_SERVER['PHP_SELF'] . "?$this->db_table_pk=$id'\" /></td>";
                 }
 
@@ -1295,11 +1406,11 @@ class ajaxCRUD{
 
                     $cell_value = $cell_data; //retain original value in new variable (before executing callback method)
 
-                    if ($this->format_field_with_function[$field] != ''){
+                    if (($this->format_field_with_function[$field] ?? '') != ''){
                         $cell_data = call_user_func($this->format_field_with_function[$field], $cell_data);
                     }
 
-                    if ($this->format_field_with_function_adv[$field] != ''){
+                    if (($this->format_field_with_function_adv[$field] ?? '') != ''){
                         $cell_data = call_user_func($this->format_field_with_function_adv[$field], $cell_data, $id);
                     }
 
@@ -1357,41 +1468,86 @@ class ajaxCRUD{
                         if (!is_numeric($found_category_index)){
 
                             //was allowable values for this field defined?
-                            if (is_array($this->allowed_values[$field]) && !$this->field_no_dropdown[$field]){
+                            if (isset($this->allowed_values[$field]) && is_array($this->allowed_values[$field]) && !($this->field_no_dropdown[$field] ?? false)){
                                 $table_html .= $this->makeAjaxDropdown($id, $field, $cell_data, $this->db_table, $this->db_table_pk, $this->allowed_values[$field]);
                             }
                             else{
 
+                                //if radio buttons are defined
+                                if (isset($this->radiobuttons[$field]) && is_array($this->radiobuttons[$field])){
+                                    $table_html .= $this->makeAjaxRadio($id, $field, $cell_data);
+                                }
+                                //if range slider is defined
+                                elseif (isset($this->range_config[$field]) && is_array($this->range_config[$field])){
+                                    $table_html .= $this->makeAjaxRange($id, $field, $cell_data);
+                                }
+                                //if multi-select is defined
+                                elseif (isset($this->multiselect[$field]) && is_array($this->multiselect[$field])){
+                                    $table_html .= $this->makeAjaxMultiSelect($id, $field, $cell_data);
+                                }
+                                //if autocomplete is defined
+                                elseif (isset($this->autocomplete[$field]) && is_array($this->autocomplete[$field])){
+                                    $table_html .= $this->makeAjaxAutocomplete($id, $field, $cell_data);
+                                }
+                                //if password field is defined
+                                elseif (isset($this->password_fields[$field]) && is_array($this->password_fields[$field])){
+                                    $table_html .= $this->makeAjaxPassword($id, $field, $cell_data);
+                                }
+                                //if rich text editor is defined
+                                elseif (isset($this->richtext[$field]) && is_array($this->richtext[$field])){
+                                    $table_html .= $this->makeAjaxRichText($id, $field, $cell_data);
+                                }
                                 //if a checkbox
-                                if (is_array($this->checkbox[$field])){
+                                elseif (isset($this->checkbox[$field]) && is_array($this->checkbox[$field])){
                                     $table_html .= $this->makeAjaxCheckbox($id, $field, $cell_data);
                                 }
                                 else{
                                     //is an editable field
-                                    //if ($cell_data == '') $cell_data = "&nbsp;&nbsp;";
+                                    $field_datatype = $this->getFieldDataType($field);
+                                    $custom_class = $this->display_field_with_class_style[$field] ?? '';
 
-                                    $field_onKeyPress = "";
-                                    if ($this->fieldIsInt($this->getFieldDataType($field)) || $this->fieldIsDecimal($this->getFieldDataType($field))){
-                                        $field_onKeyPress = "return fn_validateNumeric(event, this, 'n');";
-                                        if ($this->fieldIsDecimal($this->getFieldDataType($field))){
-                                            $field_onKeyPress = "return fn_validateNumeric(event, this, 'y');";
-                                        }
-                                    }
-
-                                    if ($this->fieldIsEnum($this->getFieldDataType($field))){
-                                        $allowed_enum_values_array = $this->getEnumArray($this->getFieldDataType($field));
+                                    if ($this->fieldIsEnum($field_datatype)){
+                                        // ENUM fields get dropdown
+                                        $allowed_enum_values_array = $this->getEnumArray($field_datatype);
                                         $table_html .= $this->makeAjaxDropdown($id, $field, $cell_data, $this->db_table, $this->db_table_pk, $allowed_enum_values_array);
                                     }
+                                    elseif ($this->fieldIsInt($field_datatype)){
+                                        // INT fields get number input with spinners
+                                        $table_html .= $this->makeAjaxEditor($id, $field, $cell_value, 'number', ['step' => 1], $cell_data);
+                                    }
+                                    elseif ($this->fieldIsDecimal($field_datatype)){
+                                        // DECIMAL/FLOAT fields get number input with decimal step
+                                        $table_html .= $this->makeAjaxEditor($id, $field, $cell_value, 'decimal', ['step' => '0.01'], $cell_data);
+                                    }
+                                    elseif ($this->fieldIsDate($field_datatype)){
+                                        // DATE fields get native date picker
+                                        $table_html .= $this->makeAjaxEditor($id, $field, $cell_value, 'date', '', $cell_data);
+                                    }
+                                    elseif ($custom_class === 'email'){
+                                        // Email fields
+                                        $table_html .= $this->makeAjaxEditor($id, $field, $cell_value, 'email', '', $cell_data);
+                                    }
+                                    elseif ($custom_class === 'url'){
+                                        // URL fields
+                                        $table_html .= $this->makeAjaxEditor($id, $field, $cell_value, 'url', '', $cell_data);
+                                    }
+                                    elseif ($custom_class === 'tel' || $custom_class === 'phone'){
+                                        // Phone/tel fields
+                                        $table_html .= $this->makeAjaxEditor($id, $field, $cell_value, 'tel', '', $cell_data);
+                                    }
+                                    elseif ($custom_class === 'color'){
+                                        // Color picker fields
+                                        $table_html .= $this->makeAjaxEditor($id, $field, $cell_value, 'color', '', $cell_data);
+                                    }
                                     else{
-
-                                        $field_length = strlen($row[$field]);
+                                        // Text or textarea based on length
+                                        $field_length = strlen($row[$field] ?? '');
                                         if ($field_length < 51){
-                                            $table_html .= $this->makeAjaxEditor($id, $field, $cell_value, 'text', $field_length, $cell_data, $field_onKeyPress);
+                                            $table_html .= $this->makeAjaxEditor($id, $field, $cell_value, 'text', $field_length, $cell_data);
                                         }
                                         else{
-                                            $textarea_height = '';
-                                            if ($this->textarea_height[$field] != '') $textarea_height = $this->textarea_height[$field];
-                                            $table_html .= $this->makeAjaxEditor($id, $field, $cell_value, 'textarea', $textarea_height, $cell_data, $field_onKeyPress);
+                                            $textarea_height = $this->textarea_height[$field] ?? '';
+                                            $table_html .= $this->makeAjaxEditor($id, $field, $cell_value, 'textarea', $textarea_height, $cell_data);
                                         }
                                     }
                                 }
@@ -1515,6 +1671,7 @@ class ajaxCRUD{
 		}
 
         //now we come to the "add" fields
+        $file_uploads = false;
         if ($this->add){
             $add_html .= "<center>\n";
             $add_html .= "   <input type=\"button\" value=\"Add $item\" class=\"btn editingSize\" onClick=\"$('#add_form_$this->db_table').slideDown('slow');\">\n";
@@ -1556,13 +1713,13 @@ class ajaxCRUD{
 					}
 
                     //if initial field value for field is set
-                    if ($this->initialFieldValue[$field] != ""){
+                    if (($this->initialFieldValue[$field] ?? '') != ""){
                     	$field_value = $this->initialFieldValue[$field];
                     	//$hideOnClick = TRUE;
                     }
 
                     //the request (post/get) will overwrite any initial values though
-                    if ($_REQUEST[$field] != '') {
+                    if (($_REQUEST[$field] ?? '') != '') {
                     	//$field_value = $_REQUEST[$field];  //note: disable because caused problems
                     	//$hideOnClick = FALSE;
                     }
@@ -1571,7 +1728,7 @@ class ajaxCRUD{
                     	//$hideOnClick = "onClick = \"this.value = ''\"";
                     }
 
-                    if ($this->displayAs_array[$field] != ''){
+                    if (($this->displayAs_array[$field] ?? '') != ''){
                         $display_field = $this->displayAs_array[$field];
                     }
                     else{
@@ -1579,12 +1736,12 @@ class ajaxCRUD{
                     }
 
                     $note = "";
-                    if ($this->fieldNote[$field] != ""){
+                    if (($this->fieldNote[$field] ?? '') != ""){
                     	$note = "&nbsp;&nbsp;<i>" . $this->fieldNote[$field] . "</i>";
                     }
 
                     //if a checkbox
-                    if (is_array($this->checkbox[$field])){
+                    if (isset($this->checkbox[$field]) && is_array($this->checkbox[$field])){
                         $values = $this->checkbox[$field];
                         $value_on = $values[0];
                         $value_off = $values[1];
@@ -1597,7 +1754,7 @@ class ajaxCRUD{
                         if (!is_numeric($found_category_index) && $found_category_index == ''){
 
                             //it's from a set of predefined allowed values for this field
-                            if (is_array($this->allowed_values[$field])){
+                            if (isset($this->allowed_values[$field]) && is_array($this->allowed_values[$field])){
                                 $add_html .= "<th width='20%'>$display_field</th><td>\n";
                                 $add_html .= "<select name=\"$field\" class='editingSize'>\n";
                                 foreach ($this->allowed_values[$field] as $dropdown){
@@ -1639,7 +1796,7 @@ class ajaxCRUD{
                                         }
 
                                         //textarea fields
-                                        if ($this->textarea_height[$field] != ''){
+                                        if (($this->textarea_height[$field] ?? '') != ''){
                                             $add_html .= "<th width='20%'>$display_field</th><td><textarea $hideOnClick onKeyPress=\"$field_onKeyPress\" class=\"editingSize\" name=\"$field\" style='width: 97%; height: " . $this->textarea_height[$field] . "px;'>$field_value</textarea>$note</td></tr>\n";
                                         }
                                         else{
@@ -1651,9 +1808,10 @@ class ajaxCRUD{
 
 											$custom_class = "";
 											// Apply custom CSS class to field if applicable
-											if ($this->display_field_with_class_style[$field] != '') {
+											if (($this->display_field_with_class_style[$field] ?? '') != '') {
 												$custom_class = $this->display_field_with_class_style[$field];
 											}
+											$hideOnBlur = $hideOnBlur ?? '';
 											$add_html .= "<th width='20%'>$display_field</th><td><input $hideOnBlur onKeyPress=\"$field_onKeyPress\" class=\"editingSize $custom_class\" type=\"text\" id=\"$field\" name=\"$field\" size=\"$field_size\" value=\"$field_value\" maxlength=\"150\">$note</td></tr>\n";
                                         }
                                     }//else not enum field
@@ -1725,15 +1883,28 @@ class ajaxCRUD{
 	}
 
 	function getFields($table){
-		$query = "SHOW COLUMNS FROM $table";
-		$rs = q($query);
-
-		//print_r($rs);
+		$driver = getDBDriver();
 		$fields = array();
-		foreach ($rs as $r){
-			//r sub0 is the name of the field (hey ... it works)
-			$fields[] = $r[0];
-            $this->field_datatype[$r[0]] = $r[1];
+
+		if ($driver === 'sqlite') {
+			// SQLite uses PRAGMA table_info
+			$query = "PRAGMA table_info($table)";
+			$rs = q($query);
+			foreach ($rs as $r){
+				$fields[] = $r['name'];
+				$this->field_datatype[$r['name']] = $r['type'];
+			}
+		} else {
+			// MySQL/PostgreSQL use SHOW COLUMNS or information_schema
+			$query = "SHOW COLUMNS FROM $table";
+			$rs = q($query);
+			foreach ($rs as $r){
+				// First column is the field name
+				$fieldName = $r['Field'] ?? $r[0];
+				$fieldType = $r['Type'] ?? $r[1];
+				$fields[] = $fieldName;
+				$this->field_datatype[$fieldName] = $fieldType;
+			}
 		}
 
 		if (count($fields) > 0){
@@ -1806,53 +1977,128 @@ class ajaxCRUD{
         return false;
     }
 
+	/**
+	 * Create an AJAX-enabled editor for a field
+	 * @param mixed $unique_id Row identifier
+	 * @param string $field_name Field name
+	 * @param mixed $field_value Current value
+	 * @param string $type Input type: 'text', 'textarea', 'number', 'date', 'email', 'url', 'tel'
+	 * @param mixed $field_size Size/height or options array for number type
+	 * @param string $field_text Display text (if different from value)
+	 * @param string $onKeyPress_function Legacy keypress handler (deprecated for HTML5 inputs)
+	 */
 	function makeAjaxEditor($unique_id, $field_name, $field_value, $type = 'textarea', $field_size = "", $field_text = "", $onKeyPress_function = ""){
 
         $prefield = trim($this->db_table . $field_name . $unique_id);
-
 		$input_name = $type . "_" . $prefield;
-
         $return_html = "";
 
 		if ($field_text == "") $field_text = $field_value;
 		if ($field_value == "") $field_text = "--";
 
+		// Escape values for HTML attributes
+		$escaped_value = htmlspecialchars($field_value, ENT_QUOTES, 'UTF-8');
+		$escaped_text = htmlspecialchars($field_text, ENT_QUOTES, 'UTF-8');
+
         $return_html .= "<span class=\"editable hand_cursor\" id=\"" . $prefield ."_show\" onClick=\"
 			document.getElementById('" . $prefield . "_edit').style.display = '';
 			document.getElementById('" . $prefield . "_show').style.display = 'none';
 			document.getElementById('" . $input_name . "').focus();
-            \">" . $field_text . "</span>
+            \">" . $escaped_text . "</span>
         <span id=\"" . $prefield ."_edit\" style=\"display: none;\">
             <form style=\"display: inline;\" name=\"form_" . $prefield . "\" id=\"form_" . $prefield . "\" onsubmit=\"
 				document.getElementById('" . $prefield . "_edit').style.display='none';
 				document.getElementById('" . $prefield . "_save').style.display='';
-                var req = '" . $this->ajax_file . "?ajaxAction=update&id=" . $unique_id . "&field=" . $field_name . "&table=" . $this->db_table . "&pk=" . $this->db_table_pk . "&val=' + escape(document.getElementById('" . $input_name . "').value);
+                var req = '" . $this->ajax_file . "?ajaxAction=update&id=" . $unique_id . "&field=" . $field_name . "&table=" . $this->db_table . "&pk=" . $this->db_table_pk . "&val=' + encodeURIComponent(document.getElementById('" . $input_name . "').value);
 				sndUpdateReq(req);
 				return false;
 			\">";
 
-            //for getting rid of the html space, replace with actual no text
+            // For getting rid of the html space, replace with actual no text
             if ($field_value == "&nbsp;&nbsp;") $field_value = "";
 
-            if ($type == 'text'){
-                if ($field_size == "") $field_size = 15;
-				if ($this->display_field_with_class_style[$field_name] != '') {
-					$custom_class = $this->display_field_with_class_style[$field_name];
-					$return_html .= "<input ONKEYPRESS=\"$onKeyPress_function\" id=\"text_$prefield\" name=\"$input_name\" type=\"text\" class=\"editingSize editMode $custom_class\" size=\"$field_size\" value=\"$field_value\"/>\n";
-				}
-				else {
-					$return_html .= "<input ONKEYPRESS=\"$onKeyPress_function\" id=\"text_$prefield\" name=\"$input_name\" type=\"text\" class=\"editingSize editMode\" size=\"$field_size\" value=\"$field_value\"/>\n";
-				}
-			}
-			else{
-                if ($field_size == "") $field_size = 80;
-                $return_html .= "<textarea ONKEYPRESS=\"$onKeyPress_function\" id=\"$input_name\" name=\"textarea_$prefield\" class=\"editingSize editMode\" style=\"width: 100%; height: " . $field_size . "px;\">$field_value</textarea>\n";
-                $return_html .= "<br /><input type=\"submit\" class=\"editingSize\" value=\"Ok\">\n";
+			$custom_class = $this->display_field_with_class_style[$field_name] ?? '';
+			$class_attr = "editingSize editMode" . ($custom_class ? " $custom_class" : "");
+
+			switch ($type) {
+				case 'number':
+					// HTML5 number input with spinners for INT fields
+					$step = is_array($field_size) ? ($field_size['step'] ?? '1') : '1';
+					$min = is_array($field_size) ? ($field_size['min'] ?? '') : '';
+					$max = is_array($field_size) ? ($field_size['max'] ?? '') : '';
+					$width = is_array($field_size) ? ($field_size['width'] ?? '80px') : '80px';
+
+					$min_attr = $min !== '' ? " min=\"$min\"" : '';
+					$max_attr = $max !== '' ? " max=\"$max\"" : '';
+
+					$return_html .= "<input type=\"number\" id=\"$input_name\" name=\"$input_name\" class=\"$class_attr\" value=\"$escaped_value\" step=\"$step\"$min_attr$max_attr style=\"width: $width;\"/>\n";
+					break;
+
+				case 'decimal':
+					// HTML5 number input with decimal step for DECIMAL/FLOAT fields
+					$step = is_array($field_size) ? ($field_size['step'] ?? '0.01') : '0.01';
+					$min = is_array($field_size) ? ($field_size['min'] ?? '') : '';
+					$max = is_array($field_size) ? ($field_size['max'] ?? '') : '';
+					$width = is_array($field_size) ? ($field_size['width'] ?? '100px') : '100px';
+
+					$min_attr = $min !== '' ? " min=\"$min\"" : '';
+					$max_attr = $max !== '' ? " max=\"$max\"" : '';
+
+					$return_html .= "<input type=\"number\" id=\"$input_name\" name=\"$input_name\" class=\"$class_attr\" value=\"$escaped_value\" step=\"$step\"$min_attr$max_attr style=\"width: $width;\"/>\n";
+					break;
+
+				case 'date':
+					// HTML5 native date picker
+					$return_html .= "<input type=\"date\" id=\"$input_name\" name=\"$input_name\" class=\"$class_attr\" value=\"$escaped_value\"/>\n";
+					break;
+
+				case 'email':
+					// HTML5 email input with validation
+					$return_html .= "<input type=\"email\" id=\"$input_name\" name=\"$input_name\" class=\"$class_attr\" value=\"$escaped_value\" style=\"width: 200px;\"/>\n";
+					break;
+
+				case 'url':
+					// HTML5 URL input with validation
+					$return_html .= "<input type=\"url\" id=\"$input_name\" name=\"$input_name\" class=\"$class_attr\" value=\"$escaped_value\" placeholder=\"https://\" style=\"width: 200px;\"/>\n";
+					break;
+
+				case 'tel':
+					// HTML5 telephone input
+					$return_html .= "<input type=\"tel\" id=\"$input_name\" name=\"$input_name\" class=\"$class_attr\" value=\"$escaped_value\" style=\"width: 150px;\"/>\n";
+					break;
+
+				case 'color':
+					// HTML5 color picker
+					$return_html .= "<input type=\"color\" id=\"$input_name\" name=\"$input_name\" class=\"$class_attr\" value=\"$escaped_value\"/>\n";
+					break;
+
+				case 'datetime':
+					// HTML5 datetime-local picker
+					// Convert standard datetime format to datetime-local format (replace space with T)
+					$datetime_value = str_replace(' ', 'T', $escaped_value);
+					$return_html .= "<input type=\"datetime-local\" id=\"$input_name\" name=\"$input_name\" class=\"$class_attr\" value=\"$datetime_value\"/>\n";
+					break;
+
+				case 'time':
+					// HTML5 time picker
+					$return_html .= "<input type=\"time\" id=\"$input_name\" name=\"$input_name\" class=\"$class_attr\" value=\"$escaped_value\"/>\n";
+					break;
+
+				case 'text':
+					if ($field_size == "" || !is_numeric($field_size)) $field_size = 15;
+					$return_html .= "<input type=\"text\" id=\"$input_name\" name=\"$input_name\" class=\"$class_attr\" size=\"$field_size\" value=\"$escaped_value\"/>\n";
+					break;
+
+				case 'textarea':
+				default:
+					if ($field_size == "" || !is_numeric($field_size)) $field_size = 80;
+					$return_html .= "<textarea id=\"$input_name\" name=\"textarea_$prefield\" class=\"$class_attr\" style=\"width: 100%; height: " . $field_size . "px;\">$escaped_value</textarea>\n";
+					$return_html .= "<br /><input type=\"submit\" class=\"editingSize\" value=\"Ok\">\n";
+					break;
 			}
 
         $return_html .= "
 			<input type=\"button\" class=\"editingSize\" value=\"Cancel\" onClick=\"
-
 				document.getElementById('" . $prefield . "_show').style.display = '';
 				document.getElementById('" . $prefield . "_edit').style.display = 'none';
 			\"/>
@@ -1908,7 +2154,8 @@ class ajaxCRUD{
                     return false;
                 \">";
 
-            if ($no_text || $this->category_required[$field_name] != TRUE){
+            $no_text = $no_text ?? false;
+            if ($no_text || ($this->category_required[$field_name] ?? false) != TRUE){
                 if ($this->fieldIsInt($this->getFieldDataType($field_name)) || $this->fieldIsDecimal($this->getFieldDataType($field_name))){
                     $return_html .= "<option value='0'>--Select--</option>\n";
                 }
@@ -1955,6 +2202,7 @@ class ajaxCRUD{
 		$values = $this->checkbox[$field_name];
 		$value_on = $values[0];
 		$value_off = $values[1];
+		$use_toggle = isset($values['toggle']) && $values['toggle'] === true;
 
 		$checked = '';
 		if ($field_value == $value_on) $checked = "checked";
@@ -1970,33 +2218,273 @@ class ajaxCRUD{
 		$value_on = str_replace('"', "'", $value_on);
 		$value_off = str_replace('"', "'", $value_off);
 
-        $return_html .= "<input type=\"checkbox\" $checked name=\"$field_name" . "_fieldckbox\" id=\"$field_name$unique_id\" onClick=\"
+		$checkboxall_value = (int)($this->checkboxall[$field_name] ?? 0);
+		$onclick_js = "
 			var " . $prefield . "_value = '';
-
 			if (this.checked){
 				" . $prefield . "_value = '$value_on';
-				if (" . (int)$this->checkboxall[$field_name] . ") {
+				if (" . $checkboxall_value . ") {
 					document.getElementById('$field_name$unique_id" . "_label').innerHTML = '$value_on';
 				}
 			}
 			else{
 				". $prefield . "_value = '$value_off';
-				if (" . (int)$this->checkboxall[$field_name] . ") {
+				if (" . $checkboxall_value . ") {
 					document.getElementById('$field_name$unique_id" . "_label').innerHTML = '$value_off';
 				}
 			}
 			var req = '" . $this->ajax_file . "?ajaxAction=update&id=$unique_id&field=$field_name&table=$this->db_table&pk=$this->db_table_pk&val=' + " . $prefield . "_value;
-
 			sndReqNoResponseChk(req);
-		\">";
+		";
 
-		if ($this->checkboxall[$field_name] == true) {
+		if ($use_toggle) {
+			// Modern CSS toggle switch
+			$return_html .= "<label class=\"toggle-switch\">";
+			$return_html .= "<input type=\"checkbox\" $checked name=\"$field_name" . "_fieldckbox\" id=\"$field_name$unique_id\" onClick=\"$onclick_js\">";
+			$return_html .= "<span class=\"toggle-slider\"></span>";
+			$return_html .= "</label>";
+		} else {
+			// Traditional checkbox
+			$return_html .= "<input type=\"checkbox\" $checked name=\"$field_name" . "_fieldckbox\" id=\"$field_name$unique_id\" onClick=\"$onclick_js\">";
+		}
+
+		if (($this->checkboxall[$field_name] ?? false) == true) {
 			$return_html .= "<label for=\"$field_name$unique_id\" id=\"" . $field_name . $unique_id . "_label\">$show_value</label>";
 		}
 
         return $return_html;
 
 	}//makeAjaxCheckbox
+
+	/**
+	 * Render AJAX radio buttons
+	 */
+	function makeAjaxRadio($unique_id, $field_name, $field_value){
+		$prefield = trim($this->db_table) . trim($field_name) . trim($unique_id);
+		$return_html = "";
+
+		$config = $this->radiobuttons[$field_name];
+		$options = $config['options'];
+		$inline = $config['inline'] ?? true;
+
+		$wrapper_class = $inline ? 'radio-group-inline' : 'radio-group-stacked';
+		$return_html .= "<div class=\"$wrapper_class\" id=\"{$prefield}_radio\">";
+
+		foreach ($options as $value => $label) {
+			$checked = ($field_value == $value) ? 'checked' : '';
+			$radio_id = "{$field_name}_{$unique_id}_{$value}";
+
+			$onclick_js = "
+				var req = '" . $this->ajax_file . "?ajaxAction=update&id=$unique_id&field=$field_name&table=$this->db_table&pk=$this->db_table_pk&val=' + encodeURIComponent('$value');
+				sndReqNoResponseChk(req);
+			";
+
+			$return_html .= "<label class=\"radio-label\">";
+			$return_html .= "<input type=\"radio\" name=\"{$field_name}_{$unique_id}\" id=\"$radio_id\" value=\"" . htmlspecialchars($value) . "\" $checked onclick=\"$onclick_js\">";
+			$return_html .= "<span class=\"radio-text\">" . htmlspecialchars($label) . "</span>";
+			$return_html .= "</label>";
+		}
+
+		$return_html .= "</div>";
+		return $return_html;
+	}//makeAjaxRadio
+
+	/**
+	 * Render AJAX range slider
+	 */
+	function makeAjaxRange($unique_id, $field_name, $field_value){
+		$prefield = trim($this->db_table) . trim($field_name) . trim($unique_id);
+		$return_html = "";
+
+		$config = $this->range_config[$field_name];
+		$min = $config['min'] ?? 0;
+		$max = $config['max'] ?? 100;
+		$step = $config['step'] ?? 1;
+		$show_value = $config['show_value'] ?? true;
+
+		$onchange_js = "
+			if (document.getElementById('{$prefield}_val')) {
+				document.getElementById('{$prefield}_val').textContent = this.value;
+			}
+			var req = '" . $this->ajax_file . "?ajaxAction=update&id=$unique_id&field=$field_name&table=$this->db_table&pk=$this->db_table_pk&val=' + this.value;
+			sndReqNoResponseChk(req);
+		";
+
+		$return_html .= "<div class=\"range-wrapper\">";
+		$return_html .= "<input type=\"range\" id=\"{$prefield}_range\" name=\"$field_name\" ";
+		$return_html .= "value=\"" . htmlspecialchars($field_value) . "\" ";
+		$return_html .= "min=\"$min\" max=\"$max\" step=\"$step\" ";
+		$return_html .= "onchange=\"$onchange_js\" oninput=\"if(document.getElementById('{$prefield}_val')) document.getElementById('{$prefield}_val').textContent = this.value;\">";
+
+		if ($show_value) {
+			$return_html .= "<span class=\"range-value\" id=\"{$prefield}_val\">" . htmlspecialchars($field_value) . "</span>";
+		}
+		$return_html .= "</div>";
+
+		return $return_html;
+	}//makeAjaxRange
+
+	/**
+	 * Render AJAX multi-select dropdown
+	 */
+	function makeAjaxMultiSelect($unique_id, $field_name, $field_value){
+		$prefield = trim($this->db_table) . trim($field_name) . trim($unique_id);
+		$return_html = "";
+
+		$config = $this->multiselect[$field_name];
+		$options = $config['options'];
+		$separator = $config['separator'] ?? ',';
+
+		// Parse current values
+		$selected_values = array_map('trim', explode($separator, $field_value));
+
+		$onchange_js = "
+			var selected = [];
+			var options = this.options;
+			for (var i = 0; i < options.length; i++) {
+				if (options[i].selected) selected.push(options[i].value);
+			}
+			var val = selected.join('$separator');
+			var req = '" . $this->ajax_file . "?ajaxAction=update&id=$unique_id&field=$field_name&table=$this->db_table&pk=$this->db_table_pk&val=' + encodeURIComponent(val);
+			sndReqNoResponseChk(req);
+		";
+
+		$return_html .= "<select multiple id=\"{$prefield}_multi\" name=\"{$field_name}[]\" class=\"multi-select\" onchange=\"$onchange_js\">";
+
+		foreach ($options as $value => $label) {
+			$selected = in_array($value, $selected_values) ? 'selected' : '';
+			$return_html .= "<option value=\"" . htmlspecialchars($value) . "\" $selected>" . htmlspecialchars($label) . "</option>";
+		}
+
+		$return_html .= "</select>";
+		return $return_html;
+	}//makeAjaxMultiSelect
+
+	/**
+	 * Render AJAX autocomplete input
+	 */
+	function makeAjaxAutocomplete($unique_id, $field_name, $field_value){
+		$prefield = trim($this->db_table) . trim($field_name) . trim($unique_id);
+		$return_html = "";
+
+		$config = $this->autocomplete[$field_name];
+		$source_table = $config['source_table'];
+		$display_field = $config['display_field'];
+		$min_chars = $config['min_chars'] ?? 2;
+
+		// Generate unique datalist ID
+		$datalist_id = "{$prefield}_list";
+
+		$onchange_js = "
+			var req = '" . $this->ajax_file . "?ajaxAction=update&id=$unique_id&field=$field_name&table=$this->db_table&pk=$this->db_table_pk&val=' + encodeURIComponent(this.value);
+			sndReqNoResponseChk(req);
+		";
+
+		$return_html .= "<input type=\"text\" id=\"{$prefield}_auto\" name=\"$field_name\" ";
+		$return_html .= "value=\"" . htmlspecialchars($field_value) . "\" ";
+		$return_html .= "list=\"$datalist_id\" ";
+		$return_html .= "class=\"autocomplete-input\" ";
+		$return_html .= "onchange=\"$onchange_js\" ";
+		$return_html .= "data-source=\"" . htmlspecialchars($source_table) . "\" ";
+		$return_html .= "data-field=\"" . htmlspecialchars($display_field) . "\" ";
+		$return_html .= "data-minchars=\"$min_chars\">";
+
+		// Datalist will be populated via AJAX/JavaScript
+		$return_html .= "<datalist id=\"$datalist_id\"></datalist>";
+
+		return $return_html;
+	}//makeAjaxAutocomplete
+
+	/**
+	 * Render password field (masked input)
+	 */
+	function makeAjaxPassword($unique_id, $field_name, $field_value){
+		$prefield = trim($this->db_table) . trim($field_name) . trim($unique_id);
+		$return_html = "";
+
+		// Show password toggle button
+		$return_html .= "<span id=\"" . $prefield . "_show\" onclick=\"
+			document.getElementById('" . $prefield . "_show').style.display = 'none';
+			document.getElementById('" . $prefield . "_edit').style.display = '';
+			document.getElementById('" . $prefield . "_input').focus();
+		\" class=\"editable hand_cursor\">••••••••</span>";
+
+		$return_html .= "<span style=\"display: none;\" id=\"" . $prefield . "_edit\">";
+		$return_html .= "<input type=\"password\" id=\"" . $prefield . "_input\" name=\"$field_name\" value=\"\" placeholder=\"Enter new password\" ";
+		$return_html .= "onblur=\"
+			if (this.value !== '') {
+				var req = '" . $this->ajax_file . "?ajaxAction=update&id=$unique_id&field=$field_name&table=$this->db_table&pk=$this->db_table_pk&val=' + encodeURIComponent(this.value);
+				sndReqNoResponseChk(req);
+			}
+			document.getElementById('" . $prefield . "_show').style.display = '';
+			document.getElementById('" . $prefield . "_edit').style.display = 'none';
+		\">";
+		$return_html .= "<button type=\"button\" onclick=\"
+			document.getElementById('" . $prefield . "_show').style.display = '';
+			document.getElementById('" . $prefield . "_edit').style.display = 'none';
+		\">Cancel</button>";
+		$return_html .= "</span>";
+
+		return $return_html;
+	}//makeAjaxPassword
+
+	/**
+	 * Render rich text editor (contenteditable with basic toolbar)
+	 */
+	function makeAjaxRichText($unique_id, $field_name, $field_value){
+		$prefield = trim($this->db_table) . trim($field_name) . trim($unique_id);
+		$return_html = "";
+
+		$config = $this->richtext[$field_name];
+		$toolbar = $config['toolbar'] ?? 'basic';
+
+		// Display value (show HTML rendered)
+		$return_html .= "<div id=\"{$prefield}_show\" class=\"editable hand_cursor richtext-display\" onclick=\"
+			document.getElementById('{$prefield}_show').style.display = 'none';
+			document.getElementById('{$prefield}_edit').style.display = 'block';
+			document.getElementById('{$prefield}_editor').focus();
+		\">" . ($field_value ?: '<em>Click to edit...</em>') . "</div>";
+
+		// Edit mode with toolbar
+		$return_html .= "<div id=\"{$prefield}_edit\" class=\"richtext-wrapper\" style=\"display: none;\">";
+
+		// Toolbar
+		$return_html .= "<div class=\"richtext-toolbar\">";
+		if ($toolbar === 'basic' || $toolbar === 'full') {
+			$return_html .= "<button type=\"button\" onclick=\"document.execCommand('bold')\" title=\"Bold\"><b>B</b></button>";
+			$return_html .= "<button type=\"button\" onclick=\"document.execCommand('italic')\" title=\"Italic\"><i>I</i></button>";
+			$return_html .= "<button type=\"button\" onclick=\"document.execCommand('underline')\" title=\"Underline\"><u>U</u></button>";
+		}
+		if ($toolbar === 'full') {
+			$return_html .= "<button type=\"button\" onclick=\"document.execCommand('insertUnorderedList')\" title=\"Bullet List\">&#8226;</button>";
+			$return_html .= "<button type=\"button\" onclick=\"document.execCommand('insertOrderedList')\" title=\"Numbered List\">1.</button>";
+			$return_html .= "<button type=\"button\" onclick=\"var url=prompt('Enter URL:'); if(url) document.execCommand('createLink', false, url);\" title=\"Insert Link\">&#128279;</button>";
+		}
+		$return_html .= "</div>";
+
+		// Contenteditable area
+		$return_html .= "<div id=\"{$prefield}_editor\" class=\"richtext-editor\" contenteditable=\"true\">" . htmlspecialchars_decode($field_value) . "</div>";
+
+		// Save/Cancel buttons
+		$return_html .= "<div class=\"richtext-actions\">";
+		$return_html .= "<button type=\"button\" onclick=\"
+			var content = document.getElementById('{$prefield}_editor').innerHTML;
+			var req = '" . $this->ajax_file . "?ajaxAction=update&id=$unique_id&field=$field_name&table=$this->db_table&pk=$this->db_table_pk&val=' + encodeURIComponent(content);
+			sndReqNoResponseChk(req);
+			document.getElementById('{$prefield}_show').innerHTML = content;
+			document.getElementById('{$prefield}_show').style.display = 'block';
+			document.getElementById('{$prefield}_edit').style.display = 'none';
+		\">Save</button>";
+		$return_html .= "<button type=\"button\" onclick=\"
+			document.getElementById('{$prefield}_editor').innerHTML = '" . addslashes($field_value) . "';
+			document.getElementById('{$prefield}_show').style.display = 'block';
+			document.getElementById('{$prefield}_edit').style.display = 'none';
+		\">Cancel</button>";
+		$return_html .= "</div>";
+		$return_html .= "</div>";
+
+		return $return_html;
+	}//makeAjaxRichText
 
     function showUploadForm($field_name, $upload_folder, $row_id){
         $return_html = "";
@@ -2038,6 +2526,7 @@ class paging{
 
 	function processPaging($rowsPerPage,$pageID){
        $record = $this->pRecordCount;
+       $rowsPerPage = $rowsPerPage ?: 10; // Default to 10 if 0 or null
        if($record >=$rowsPerPage)
             $record=ceil($record/$rowsPerPage);
        else
@@ -2125,13 +2614,14 @@ if (!function_exists('echo_msg_box')){
         }
 
         //for passing errors/reports over get variables
-        if ($_REQUEST['err_msg'] != ''){
+        if (($_REQUEST['err_msg'] ?? '') != ''){
             $error_msg[] = $_REQUEST['err_msg'];
         }
-        if ($_REQUEST['rep_msg'] != ''){
+        if (($_REQUEST['rep_msg'] ?? '') != ''){
             $report_msg[] = $_REQUEST['rep_msg'];
         }
 
+        $reports = '';
         if(is_array($report_msg)){
             $first = true;
                 foreach ($report_msg as $e){
@@ -2147,6 +2637,7 @@ if (!function_exists('echo_msg_box')){
             echo "<div class='report'>$reports</div>";
         }
 
+        $errors = '';
         if(is_array($error_msg)){
             $first = true;
                 foreach ($error_msg as $e){

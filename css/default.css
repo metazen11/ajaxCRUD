@@ -1,112 +1,629 @@
 /*
-	HUNDREDS of other stylesheets which work with this class can be found here - http://icant.co.uk/csstablegallery
-	Try a few demos using the style dropdown box for our demo here - http://www.ajaxcrud.com/
-*/
+ * ajaxCRUD v7.0 - Professional Dark Theme
+ * Modern, clean styling with grays, blacks, and subtle gradients
+ */
 
-.hand_cursor{
-	cursor: pointer; /* hand-shaped cursor */
-	cursor: hand; /* for IE 5.x */
+/* ============================================
+   Base Reset & Typography
+   ============================================ */
+.hand_cursor {
+	cursor: pointer;
 }
 
-.paging_links{font-family:Verdana, Arial, Helvetica, sans-serif; font-size:10px; color:#F5E000;}
-
+/* ============================================
+   Main Table Styling
+   ============================================ */
 .ajaxCRUD {
-	background: #F4F2FD;
-	border-color: #BBB1ED;
-	border-style: solid;
-	border-width: 0px;
-	padding:4px;
-	border-collapse:collapse;
-	margin-top:10px;
-	margin-bottom:10px;
+	background: #ffffff;
+	border: 1px solid #e0e0e0;
+	border-radius: 8px;
+	border-collapse: separate;
+	border-spacing: 0;
+	margin: 20px 0;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+	overflow: hidden;
 }
 
-.ajaxCRUD th{
-	background: #CFDBF3;
-	font-weight: bold;
-	color:#445276;
+.ajaxCRUD th {
+	background: linear-gradient(to bottom, #2c3e50 0%, #1a252f 100%);
+	color: #ffffff;
+	font-weight: 600;
 	font-size: 12px;
-}
-
-.ajaxCRUD th a{
-	color: #173D7F;
-}
-
-.ajaxCRUD td, th a{
-	text-decoration: none;
-}
-
-.ajaxCRUD td, th a:hover{
-	color: #000;
-}
-
-.ajaxCRUD td{
-	font-family: Arial, Verdana;
-	font-size: 11px;
-	background: #F9F8FB;
-	color: #716E6E;
-	font-weight:normal;
-	/* text-align: center; */
-	vertical-align: middle;
-}
-
-.ajaxCRUD td, .ajaxCRUD th{
-	padding: 5px 5px;
-}
-table td.odd, table tr.odd, tr.odd td, tbody tr.odd th{
-	background-color: #f2f2f2;
-}
-
-.editingSize{
-	font-size: 10px;
-}
-
-.vertical, .vertical td, .vertical th{
-	text-align:left;
-}
-
-/* this will only work when your HTML doctype is in "strict" mode. took forever to figure that out...
-In other words - put this in your header:
-   <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-*/
-
-.editable:hover, p.editable:hover{
-	background-color: #FFFF99;
-}
-
-input, select, textarea{
-	font-size: 100%;
-	border-top: 1px solid #7c7c7c;
-	border-left: 1px solid #c3c3c3;
-	border-right: 1px solid #c3c3c3;
-	border-bottom: 1px solid #ddd;
-	background: #fff url("fieldbg.gif") repeat-x top;
-	color: #333;
-	padding: 2px 0 2px 2px;
-}
-
-.btn{
-	font-size: 11px;
-}
-.report {
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	padding: 14px 16px;
+	border-bottom: 2px solid #1a252f;
 	text-align: left;
-	border-top: 1px solid #9c9;
-	border-bottom: 1px solid #9c9;
-	padding: 5px 5px 5px 30px;
-	font-size: 11px;
-	margin: 0 20px 15px 20px;
-	color: #060;
-	background: url("checkicon.gif") #e2f9e3 left no-repeat;
+}
+
+.ajaxCRUD th a {
+	color: #ecf0f1;
+	text-decoration: none;
+	transition: color 0.2s;
+}
+
+.ajaxCRUD th a:hover {
+	color: #3498db;
+}
+
+.ajaxCRUD td {
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	font-size: 13px;
+	background: #ffffff;
+	color: #333333;
+	padding: 12px 16px;
+	border-bottom: 1px solid #e8e8e8;
+	vertical-align: middle;
+	transition: background-color 0.15s;
+}
+
+.ajaxCRUD tr:hover td {
+	background-color: #f8f9fa;
+}
+
+.ajaxCRUD tr.odd td,
+table td.odd,
+table tr.odd,
+tr.odd td,
+tbody tr.odd th {
+	background-color: #fafafa;
+}
+
+.ajaxCRUD tr.odd:hover td {
+	background-color: #f0f0f0;
+}
+
+/* ============================================
+   Paging Links
+   ============================================ */
+.paging_links {
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	font-size: 12px;
+	color: #555;
+	padding: 12px 0;
+}
+
+.paging_links a {
+	color: #3498db;
+	text-decoration: none;
+	padding: 6px 10px;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	margin: 0 2px;
+	transition: all 0.2s;
+}
+
+.paging_links a:hover {
+	background: #3498db;
+	color: white;
+	border-color: #3498db;
+}
+
+/* ============================================
+   Form Controls
+   ============================================ */
+.editingSize {
+	font-size: 13px;
+}
+
+input, select, textarea {
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	font-size: 13px;
+	border: 1px solid #d0d0d0;
+	border-radius: 4px;
+	background: #ffffff;
+	color: #333;
+	padding: 8px 12px;
+	transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:focus, select:focus, textarea:focus {
+	outline: none;
+	border-color: #3498db;
+	box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+}
+
+/* ============================================
+   Buttons
+   ============================================ */
+.btn,
+input[type="submit"],
+input[type="button"],
+button {
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	font-size: 13px;
+	font-weight: 500;
+	background: linear-gradient(to bottom, #4a5568 0%, #2d3748 100%);
+	color: #ffffff;
+	border: none;
+	border-radius: 4px;
+	padding: 8px 16px;
+	cursor: pointer;
+	transition: all 0.2s;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.btn:hover,
+input[type="submit"]:hover,
+input[type="button"]:hover,
+button:hover {
+	background: linear-gradient(to bottom, #5a6678 0%, #3d4758 100%);
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.btn:active,
+input[type="submit"]:active,
+input[type="button"]:active,
+button:active {
+	transform: translateY(1px);
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+/* Primary Action */
+.btn-primary {
+	background: linear-gradient(to bottom, #3498db 0%, #2980b9 100%);
+}
+
+.btn-primary:hover {
+	background: linear-gradient(to bottom, #4aa3e0 0%, #3498db 100%);
+}
+
+/* Success/Add Action */
+.btn-add,
+.btn-success {
+	background: linear-gradient(to bottom, #27ae60 0%, #1e8449 100%);
+}
+
+.btn-add:hover,
+.btn-success:hover {
+	background: linear-gradient(to bottom, #2ecc71 0%, #27ae60 100%);
+}
+
+/* Danger/Delete Action */
+.btn-delete,
+.btn-danger {
+	background: linear-gradient(to bottom, #e74c3c 0%, #c0392b 100%);
+}
+
+.btn-delete:hover,
+.btn-danger:hover {
+	background: linear-gradient(to bottom, #ec7063 0%, #e74c3c 100%);
+}
+
+/* ============================================
+   Editable Cells
+   ============================================ */
+.editable {
+	cursor: pointer;
+	border-radius: 3px;
+	transition: background-color 0.15s;
+}
+
+.editable:hover,
+p.editable:hover {
+	background-color: #fff9e6;
+}
+
+.editMode {
+	border: 2px solid #3498db;
+	border-radius: 4px;
+	padding: 6px 8px;
+	background: #ffffff;
+}
+
+.editMode:focus {
+	outline: none;
+	box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.25);
+}
+
+/* ============================================
+   Messages & Alerts
+   ============================================ */
+.report {
+	background: linear-gradient(to right, #d4edda, #c3e6cb);
+	border: 1px solid #28a745;
+	border-left: 4px solid #28a745;
+	border-radius: 4px;
+	padding: 12px 16px;
+	font-size: 13px;
+	margin: 15px 0;
+	color: #155724;
 }
 
 .error {
+	background: linear-gradient(to right, #f8d7da, #f5c6cb);
+	border: 1px solid #dc3545;
+	border-left: 4px solid #dc3545;
+	border-radius: 4px;
+	padding: 12px 16px;
+	font-size: 13px;
+	margin: 15px 0;
+	color: #721c24;
+	font-weight: 500;
+}
+
+/* ============================================
+   Saving Indicator
+   ============================================ */
+.savingAjaxWithBackground {
+	background: linear-gradient(to right, #fff3cd, #ffeaa7);
+	color: #856404;
+	padding: 4px 10px;
+	border-radius: 4px;
+	font-size: 12px;
+	font-weight: 500;
+	animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.7; }
+}
+
+/* ============================================
+   Vertical Table Layout
+   ============================================ */
+.vertical,
+.vertical td,
+.vertical th {
 	text-align: left;
+}
+
+.vertical th {
+	width: 25%;
+	background: linear-gradient(to right, #34495e, #2c3e50);
+}
+
+/* ============================================
+   Toggle Switch
+   ============================================ */
+.toggle-switch {
+	position: relative;
+	display: inline-block;
+	width: 48px;
+	height: 24px;
+}
+
+.toggle-switch input {
+	opacity: 0;
+	width: 0;
+	height: 0;
+}
+
+.toggle-slider {
+	position: absolute;
+	cursor: pointer;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: linear-gradient(to bottom, #bdc3c7, #95a5a6);
+	transition: 0.3s;
+	border-radius: 24px;
+	box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-slider:before {
+	position: absolute;
+	content: "";
+	height: 18px;
+	width: 18px;
+	left: 3px;
+	bottom: 3px;
+	background: linear-gradient(to bottom, #ffffff, #f0f0f0);
+	transition: 0.3s;
+	border-radius: 50%;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+input:checked + .toggle-slider {
+	background: linear-gradient(to bottom, #27ae60, #1e8449);
+}
+
+input:focus + .toggle-slider {
+	box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2), 0 0 0 3px rgba(39, 174, 96, 0.25);
+}
+
+input:checked + .toggle-slider:before {
+	transform: translateX(24px);
+}
+
+.toggle-switch-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.toggle-label-text {
+	font-size: 12px;
+	color: #555;
+	font-weight: 500;
+}
+
+/* ============================================
+   Radio Buttons
+   ============================================ */
+.radio-group-inline {
+	display: flex;
+	gap: 16px;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.radio-group-stacked {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.radio-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	cursor: pointer;
+	font-size: 13px;
+	padding: 4px 8px;
+	border-radius: 4px;
+	transition: background-color 0.15s;
+}
+
+.radio-label:hover {
+	background-color: #f5f5f5;
+}
+
+.radio-label input[type="radio"] {
+	margin: 0;
+	cursor: pointer;
+	accent-color: #3498db;
+}
+
+.radio-text {
+	color: #333;
+}
+
+.radio-label:hover .radio-text {
+	color: #2c3e50;
+}
+
+/* ============================================
+   Range Slider
+   ============================================ */
+.range-wrapper {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+input[type="range"] {
+	-webkit-appearance: none;
+	width: 140px;
+	height: 6px;
+	background: linear-gradient(to right, #e0e0e0, #bdc3c7);
+	border-radius: 3px;
+	outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	width: 18px;
+	height: 18px;
+	background: linear-gradient(to bottom, #3498db, #2980b9);
+	border-radius: 50%;
+	cursor: pointer;
+	transition: transform 0.15s, box-shadow 0.15s;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+	transform: scale(1.1);
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+input[type="range"]::-moz-range-thumb {
+	width: 18px;
+	height: 18px;
+	background: linear-gradient(to bottom, #3498db, #2980b9);
+	border-radius: 50%;
+	cursor: pointer;
+	border: none;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.range-value {
+	font-size: 13px;
+	font-weight: 600;
+	color: #2c3e50;
+	min-width: 40px;
+	text-align: center;
+	background: linear-gradient(to bottom, #ecf0f1, #e0e0e0);
+	padding: 4px 8px;
+	border-radius: 4px;
+	box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* ============================================
+   Multi-Select
+   ============================================ */
+.multi-select {
+	min-width: 180px;
+	min-height: 100px;
+	font-size: 13px;
+	border-radius: 4px;
+}
+
+.multi-select option {
+	padding: 6px 10px;
+}
+
+.multi-select option:checked {
+	background: linear-gradient(#3498db, #2980b9);
+	color: white;
+}
+
+/* ============================================
+   Autocomplete
+   ============================================ */
+.autocomplete-input {
+	min-width: 180px;
+}
+
+.autocomplete-input:focus {
+	border-color: #3498db;
+	box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+}
+
+/* ============================================
+   Date/Time Inputs
+   ============================================ */
+input[type="date"],
+input[type="datetime-local"],
+input[type="time"] {
+	padding: 8px 12px;
+}
+
+input[type="date"] {
+	min-width: 150px;
+}
+
+input[type="datetime-local"] {
+	min-width: 200px;
+}
+
+input[type="time"] {
+	min-width: 110px;
+}
+
+/* ============================================
+   Number Input
+   ============================================ */
+input[type="number"] {
+	-moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+	-webkit-appearance: inner-spin-button;
+	opacity: 1;
+	height: 28px;
+}
+
+/* ============================================
+   Color Picker
+   ============================================ */
+input[type="color"] {
+	width: 50px;
+	height: 36px;
+	padding: 3px;
+	cursor: pointer;
+	border-radius: 4px;
+}
+
+/* ============================================
+   Rich Text Editor
+   ============================================ */
+.richtext-display {
+	min-height: 50px;
+	padding: 10px;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	line-height: 1.5;
+}
+
+.richtext-display:hover {
+	background-color: #fff9e6;
+	border-color: #e0e0e0;
+}
+
+.richtext-wrapper {
+	border: 1px solid #d0d0d0;
+	border-radius: 6px;
+	overflow: hidden;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.richtext-toolbar {
+	background: linear-gradient(to bottom, #f8f9fa, #e9ecef);
+	border-bottom: 1px solid #d0d0d0;
+	padding: 6px 8px;
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+
+.richtext-toolbar button {
+	width: 32px;
+	height: 32px;
+	padding: 0;
+	border: 1px solid #ccc;
+	background: linear-gradient(to bottom, #ffffff, #f5f5f5);
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 14px;
+	color: #333;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.richtext-toolbar button:hover {
+	background: linear-gradient(to bottom, #f5f5f5, #e8e8e8);
+	border-color: #aaa;
+}
+
+.richtext-toolbar button:active {
+	background: linear-gradient(to bottom, #e8e8e8, #d8d8d8);
+}
+
+.richtext-editor {
+	min-height: 120px;
+	padding: 12px;
+	outline: none;
+	font-size: 14px;
+	line-height: 1.6;
+	background: #ffffff;
+}
+
+.richtext-editor:focus {
+	background: #fffef8;
+}
+
+.richtext-actions {
+	background: linear-gradient(to bottom, #f8f9fa, #e9ecef);
+	border-top: 1px solid #d0d0d0;
+	padding: 8px 12px;
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+}
+
+/* ============================================
+   Password Field
+   ============================================ */
+.password-mask {
+	letter-spacing: 3px;
+	color: #666;
 	font-weight: bold;
-	border-top: 1px solid #c99;
-	border-bottom: 1px solid #c99;
-	padding: 5px 5px 5px 27px;
-	font-size: 11px;
-	margin: 0 20px 15px 20px;
-	background: url("badicon.gif") #c00 left no-repeat;
-	color: #fff;
+}
+
+input[type="password"] {
+	letter-spacing: 2px;
+}
+
+/* ============================================
+   Responsive Adjustments
+   ============================================ */
+@media (max-width: 768px) {
+	.ajaxCRUD th,
+	.ajaxCRUD td {
+		padding: 10px 12px;
+		font-size: 12px;
+	}
+
+	.radio-group-inline {
+		gap: 10px;
+	}
+
+	input[type="range"] {
+		width: 100px;
+	}
 }

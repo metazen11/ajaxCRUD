@@ -1,0 +1,28 @@
+# Session files - not for version control
+session-handoff.md
+
+# Test artifacts
+tests/test-results/
+tests/playwright-report/
+tests/node_modules/
+tests/*.sqlite
+tests/fixtures/*.sqlite
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PHP
+vendor/
+composer.lock
+
+# Sensitive
+*.env
+config.local.php

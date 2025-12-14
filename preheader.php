@@ -56,35 +56,42 @@ error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED);
 
 ####################################################################################
 ## Database Configuration
+## Set $DB_DRIVER and $DB_CONFIG before including this file to override defaults
 ####################################################################################
 
 /**
  * Database driver: 'mysql', 'sqlite', or 'pgsql'
+ * Can be overridden by setting before include
  */
-$DB_DRIVER = 'mysql';
+if (!isset($DB_DRIVER)) {
+    $DB_DRIVER = 'mysql';
+}
 
 /**
  * Database configuration per driver
+ * Can be overridden by setting before include
  */
-$DB_CONFIG = [
-    'mysql' => [
-        'host'     => 'localhost',
-        'dbname'   => 'ajaxcrud_demos',
-        'username' => 'root',
-        'password' => '',
-        'charset'  => 'utf8mb4',
-    ],
-    'sqlite' => [
-        'path'     => __DIR__ . '/database.sqlite',
-    ],
-    'pgsql' => [
-        'host'     => 'localhost',
-        'port'     => 5432,
-        'dbname'   => 'ajaxcrud_demos',
-        'username' => 'postgres',
-        'password' => '',
-    ],
-];
+if (!isset($DB_CONFIG)) {
+    $DB_CONFIG = [
+        'mysql' => [
+            'host'     => 'localhost',
+            'dbname'   => 'ajaxcrud_demos',
+            'username' => 'root',
+            'password' => '',
+            'charset'  => 'utf8mb4',
+        ],
+        'sqlite' => [
+            'path'     => __DIR__ . '/database.sqlite',
+        ],
+        'pgsql' => [
+            'host'     => 'localhost',
+            'port'     => 5432,
+            'dbname'   => 'ajaxcrud_demos',
+            'username' => 'postgres',
+            'password' => '',
+        ],
+    ];
+}
 
 // Common PDO options for all drivers
 $DB_OPTIONS = [
