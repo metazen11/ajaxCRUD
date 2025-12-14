@@ -205,6 +205,26 @@ function sndReqNoResponseChk(action) {
  * @param {string} returnString - The response text from the server
  */
 function handleUpdateResponse(returnString) {
+    // Check for validation error response
+    if (returnString.substring(0, 16) === 'validation_error') {
+        const brokenString = returnString.split('|');
+        const id = brokenString[1];
+        const errorMessage = brokenString[2];
+
+        // Show validation error to user
+        showValidationError(id, errorMessage);
+
+        // Re-show the edit form
+        const showElement = document.getElementById(`${id}_show`);
+        const editElement = document.getElementById(`${id}_edit`);
+        const saveElement = document.getElementById(`${id}_save`);
+
+        if (showElement) showElement.style.display = 'none';
+        if (editElement) editElement.style.display = '';
+        if (saveElement) saveElement.style.display = 'none';
+        return;
+    }
+
     // Check for error response
     if (returnString.substring(0, 5) === 'error') {
         const brokenString = returnString.split('|');
@@ -499,6 +519,134 @@ if (typeof Array.prototype.findIndex !== 'function') {
             }
         }
         return '';
+    };
+}
+
+/**
+ * Validation patterns for client-side validation
+ */
+const validationPatterns = {
+    email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+    tel: /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]{6,}$/,
+    time: /^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/,
+    date: /^\d{4}-\d{2}-\d{2}$/,
+    datetime: /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?$/,
+    color: /^#[0-9A-Fa-f]{6}$/,
+    url: /^https?:\/\/.+/,
+    number: /^-?\d+$/,
+    decimal: /^-?\d*\.?\d+$/
+};
+
+/**
+ * Validation error messages
+ */
+const validationMessages = {
+    email: 'Please enter a valid email address',
+    tel: 'Please enter a valid phone number',
+    time: 'Please enter a valid time (HH:MM)',
+    date: 'Please enter a valid date (YYYY-MM-DD)',
+    datetime: 'Please enter a valid date and time',
+    color: 'Please enter a valid color (#RRGGBB)',
+    url: 'Please enter a valid URL (https://...)',
+    number: 'Please enter a valid whole number',
+    decimal: 'Please enter a valid number'
+};
+
+/**
+ * Validate a field value based on its type
+ * @param {string} value - The value to validate
+ * @param {string} type - The field type
+ * @returns {string|null} Error message or null if valid
+ */
+function validateFieldValue(value, type) {
+    // Empty values are allowed (unless required is set)
+    if (!value || value.trim() === '') return null;
+
+    const pattern = validationPatterns[type];
+    if (pattern && !pattern.test(value)) {
+        return validationMessages[type] || 'Invalid value';
+    }
+    return null;
+}
+
+/**
+ * Show validation error to user
+ * @param {string} fieldId - The field identifier
+ * @param {string} message - The error message
+ */
+function showValidationError(fieldId, message) {
+    // Remove any existing error
+    hideValidationError(fieldId);
+
+    // Find the edit container
+    const editElement = document.getElementById(`${fieldId}_edit`);
+    if (!editElement) {
+        alert(message); // Fallback to alert
+        return;
+    }
+
+    // Create error element
+    const errorDiv = document.createElement('div');
+    errorDiv.id = `${fieldId}_error`;
+    errorDiv.className = 'validation-error';
+    errorDiv.textContent = message;
+    errorDiv.style.cssText = 'color: #dc3545; font-size: 12px; margin-top: 4px; padding: 4px 8px; background: #f8d7da; border-radius: 4px; display: block;';
+
+    // Insert after the form
+    editElement.appendChild(errorDiv);
+
+    // Also add error styling to the input
+    const input = editElement.querySelector('input, select, textarea');
+    if (input) {
+        input.style.borderColor = '#dc3545';
+        input.style.boxShadow = '0 0 0 2px rgba(220, 53, 69, 0.25)';
+    }
+}
+
+/**
+ * Hide validation error
+ * @param {string} fieldId - The field identifier
+ */
+function hideValidationError(fieldId) {
+    const errorElement = document.getElementById(`${fieldId}_error`);
+    if (errorElement) {
+        errorElement.remove();
+    }
+
+    // Remove error styling from input
+    const editElement = document.getElementById(`${fieldId}_edit`);
+    if (editElement) {
+        const input = editElement.querySelector('input, select, textarea');
+        if (input) {
+            input.style.borderColor = '';
+            input.style.boxShadow = '';
+        }
+    }
+}
+
+/**
+ * Create a client-side validation function for a field
+ * @param {string} fieldId - The field identifier
+ * @param {string} inputId - The input element ID
+ * @param {string} type - The field type
+ * @returns {Function} Validation function
+ */
+function createFieldValidator(fieldId, inputId, type) {
+    return function() {
+        const input = document.getElementById(inputId);
+        if (!input) return true;
+
+        const value = input.value;
+        const error = validateFieldValue(value, type);
+
+        if (error) {
+            showValidationError(fieldId, error);
+            input.focus();
+            return false;
+        }
+
+        hideValidationError(fieldId);
+        return true;
     };
 }
 

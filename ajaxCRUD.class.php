@@ -67,6 +67,17 @@
 		if ($ajaxAction === 'update'){
 			// Validate that we have required fields
 			if ($table && $pk && $field && $id !== '') {
+				// Server-side validation
+				$validation_error = ajaxCRUD::validateFieldValue($field, $val, $_REQUEST['vtype'] ?? '');
+				if ($validation_error) {
+					$prefield = trim($table . $field . $id);
+					echo "validation_error|" . $prefield . "|" . $validation_error;
+					exit();
+				}
+
+				// Sanitize value based on field type
+				$val = ajaxCRUD::sanitizeFieldValue($val, $_REQUEST['vtype'] ?? '');
+
 				// Check to see if record exists using prepared statement
 				$row_current_value = q1("SELECT `$pk` FROM `$table` WHERE `$pk` = ?", [$id]);
 				if ($row_current_value === null || $row_current_value === ''){
@@ -248,6 +259,23 @@ class ajaxCRUD{
 
 	// password fields (will show masked input)
 	var $password_fields = array();
+
+	// Validation rules per field. key is field name, value is array of rules
+	// Supported rules: required, email, url, phone, time, date, datetime, color,
+	//                  min, max, minlength, maxlength, pattern, numeric, decimal
+	var $validation_rules = array();
+
+	// Default validation patterns
+	var $validation_patterns = array(
+		'phone' => '^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]*$',
+		'time' => '^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$',
+		'date' => '^\d{4}-\d{2}-\d{2}$',
+		'datetime' => '^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?$',
+		'color' => '^#[0-9A-Fa-f]{6}$',
+		'numeric' => '^-?\d+$',
+		'decimal' => '^-?\d*\.?\d+$',
+		'url' => '^https?://.+',
+	);
 
     //values to be set to a particular field when a new row is added. the array is set as $field_name => $add_value
     var $add_values = array();
@@ -2000,16 +2028,21 @@ class ajaxCRUD{
 		$escaped_value = htmlspecialchars($field_value, ENT_QUOTES, 'UTF-8');
 		$escaped_text = htmlspecialchars($field_text, ENT_QUOTES, 'UTF-8');
 
+		// Register client-side validation function
+		$return_html .= "<script>window.validateField_" . $prefield . " = createFieldValidator('" . $prefield . "', '" . $input_name . "', '" . $type . "');</script>\n";
+
         $return_html .= "<span class=\"editable hand_cursor\" id=\"" . $prefield ."_show\" onClick=\"
 			document.getElementById('" . $prefield . "_edit').style.display = '';
 			document.getElementById('" . $prefield . "_show').style.display = 'none';
 			document.getElementById('" . $input_name . "').focus();
+			hideValidationError('" . $prefield . "');
             \">" . $escaped_text . "</span>
         <span id=\"" . $prefield ."_edit\" style=\"display: none;\">
             <form style=\"display: inline;\" name=\"form_" . $prefield . "\" id=\"form_" . $prefield . "\" onsubmit=\"
+				if (!validateField_" . $prefield . "()) return false;
 				document.getElementById('" . $prefield . "_edit').style.display='none';
 				document.getElementById('" . $prefield . "_save').style.display='';
-                var req = '" . $this->ajax_file . "?ajaxAction=update&id=" . $unique_id . "&field=" . $field_name . "&table=" . $this->db_table . "&pk=" . $this->db_table_pk . "&val=' + encodeURIComponent(document.getElementById('" . $input_name . "').value);
+                var req = '" . $this->ajax_file . "?ajaxAction=update&id=" . $unique_id . "&field=" . $field_name . "&table=" . $this->db_table . "&pk=" . $this->db_table_pk . "&vtype=" . $type . "&val=' + encodeURIComponent(document.getElementById('" . $input_name . "').value);
 				sndUpdateReq(req);
 				return false;
 			\">";
@@ -2063,8 +2096,8 @@ class ajaxCRUD{
 					break;
 
 				case 'tel':
-					// HTML5 telephone input
-					$return_html .= "<input type=\"tel\" id=\"$input_name\" name=\"$input_name\" class=\"$class_attr\" value=\"$escaped_value\" style=\"width: 150px;\"/>\n";
+					// HTML5 telephone input with pattern
+					$return_html .= "<input type=\"tel\" id=\"$input_name\" name=\"$input_name\" class=\"$class_attr\" value=\"$escaped_value\" pattern=\"[+]?[(]?[0-9]{1,4}[)]?[-\\s./0-9]*\" title=\"Phone format: +1 (555) 123-4567\" style=\"width: 150px;\"/>\n";
 					break;
 
 				case 'color':
@@ -2506,6 +2539,215 @@ class ajaxCRUD{
 			return $_SERVER['REQUEST_URI'] . "&";
 		}
 		return $_SERVER['REQUEST_URI'] . "?";
+	}
+
+	/**
+	 * Define validation rules for a field
+	 *
+	 * @param string $field Field name
+	 * @param array $rules Array of rules: ['required', 'email', 'minlength' => 5, 'maxlength' => 100]
+	 */
+	function defineValidation($field, $rules) {
+		$this->validation_rules[$field] = $rules;
+	}
+
+	/**
+	 * Get validation attributes for HTML input
+	 */
+	function getValidationAttributes($field, $type = 'text') {
+		$attrs = [];
+		$rules = $this->validation_rules[$field] ?? [];
+
+		// Add pattern based on type
+		switch ($type) {
+			case 'tel':
+				$attrs['pattern'] = $this->validation_patterns['phone'];
+				$attrs['title'] = 'Phone number (e.g., 555-123-4567)';
+				break;
+			case 'time':
+				$attrs['pattern'] = $this->validation_patterns['time'];
+				$attrs['title'] = 'Time in HH:MM format';
+				break;
+			case 'color':
+				$attrs['pattern'] = $this->validation_patterns['color'];
+				$attrs['title'] = 'Hex color (e.g., #FF0000)';
+				break;
+		}
+
+		// Apply custom rules
+		foreach ($rules as $key => $value) {
+			if (is_numeric($key)) {
+				// Simple rule like 'required'
+				if ($value === 'required') {
+					$attrs['required'] = 'required';
+				}
+			} else {
+				// Rule with value like 'minlength' => 5
+				switch ($key) {
+					case 'minlength':
+						$attrs['minlength'] = $value;
+						break;
+					case 'maxlength':
+						$attrs['maxlength'] = $value;
+						break;
+					case 'min':
+						$attrs['min'] = $value;
+						break;
+					case 'max':
+						$attrs['max'] = $value;
+						break;
+					case 'pattern':
+						$attrs['pattern'] = $value;
+						break;
+					case 'title':
+						$attrs['title'] = $value;
+						break;
+				}
+			}
+		}
+
+		// Build attribute string
+		$attr_str = '';
+		foreach ($attrs as $name => $val) {
+			$attr_str .= " $name=\"" . htmlspecialchars($val, ENT_QUOTES) . "\"";
+		}
+		return $attr_str;
+	}
+
+	/**
+	 * Server-side validation for a field value
+	 * Returns error message if invalid, null if valid
+	 */
+	public static function validateFieldValue($field, $value, $type = '') {
+		// Skip validation for empty optional fields
+		if ($value === '' || $value === null) {
+			return null;
+		}
+
+		switch ($type) {
+			case 'email':
+				if (!filter_var($value, FILTER_VALIDATE_EMAIL)) {
+					return 'Invalid email format';
+				}
+				break;
+
+			case 'url':
+				if (!filter_var($value, FILTER_VALIDATE_URL)) {
+					return 'Invalid URL format';
+				}
+				break;
+
+			case 'tel':
+				// Allow various phone formats
+				if (!preg_match('/^[+]?[(]?[0-9]{1,4}[)]?[-\s.\/0-9]{6,}$/', $value)) {
+					return 'Invalid phone number format';
+				}
+				break;
+
+			case 'time':
+				if (!preg_match('/^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/', $value)) {
+					return 'Invalid time format (use HH:MM)';
+				}
+				break;
+
+			case 'date':
+				if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+					return 'Invalid date format (use YYYY-MM-DD)';
+				}
+				// Validate it's a real date
+				$parts = explode('-', $value);
+				if (!checkdate((int)$parts[1], (int)$parts[2], (int)$parts[0])) {
+					return 'Invalid date';
+				}
+				break;
+
+			case 'datetime':
+			case 'datetime-local':
+				// Convert T to space for validation
+				$normalized = str_replace('T', ' ', $value);
+				if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/', $normalized)) {
+					return 'Invalid datetime format';
+				}
+				break;
+
+			case 'color':
+				if (!preg_match('/^#[0-9A-Fa-f]{6}$/', $value)) {
+					return 'Invalid color format (use #RRGGBB)';
+				}
+				break;
+
+			case 'number':
+				if (!is_numeric($value) || strpos($value, '.') !== false) {
+					return 'Must be a whole number';
+				}
+				break;
+
+			case 'decimal':
+				if (!is_numeric($value)) {
+					return 'Must be a number';
+				}
+				break;
+		}
+
+		return null; // Valid
+	}
+
+	/**
+	 * Sanitize field value based on type
+	 */
+	public static function sanitizeFieldValue($value, $type = '') {
+		// Basic sanitization for all types
+		$value = trim($value);
+
+		switch ($type) {
+			case 'email':
+				$value = filter_var($value, FILTER_SANITIZE_EMAIL);
+				break;
+
+			case 'url':
+				$value = filter_var($value, FILTER_SANITIZE_URL);
+				break;
+
+			case 'number':
+				$value = filter_var($value, FILTER_SANITIZE_NUMBER_INT);
+				break;
+
+			case 'decimal':
+				$value = filter_var($value, FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION);
+				break;
+
+			case 'color':
+				// Ensure # prefix and uppercase
+				$value = strtoupper($value);
+				if (substr($value, 0, 1) !== '#') {
+					$value = '#' . $value;
+				}
+				break;
+
+			case 'tel':
+				// Remove any dangerous characters but keep phone format chars
+				$value = preg_replace('/[^0-9+\-().\/\s]/', '', $value);
+				break;
+
+			case 'time':
+				// Normalize time format
+				if (preg_match('/^(\d{1,2}):(\d{2})(:\d{2})?$/', $value, $matches)) {
+					$value = sprintf('%02d:%02d', $matches[1], $matches[2]);
+					if (isset($matches[3])) {
+						$value .= $matches[3];
+					}
+				}
+				break;
+
+			default:
+				// General XSS protection for text fields
+				$value = htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+				// But we store the raw value in DB, so decode it
+				$value = html_entity_decode($value, ENT_QUOTES, 'UTF-8');
+				break;
+		}
+
+		return $value;
 	}
 
 }//class
