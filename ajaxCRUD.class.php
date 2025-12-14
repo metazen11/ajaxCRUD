@@ -2667,4 +2667,329 @@ if (!function_exists('make_filename_safe')){
         return stripslashes($filename);
     }
 }
+
+/**
+ * DynamicTableEditor - Quick scaffolding for any database table
+ *
+ * Usage:
+ *   $editor = new DynamicTableEditor('tblUsers');
+ *   $editor->render();
+ *
+ * Or with options:
+ *   $editor = new DynamicTableEditor('tblUsers', [
+ *       'rows_per_page' => 25,
+ *       'title' => 'User Management',
+ *       'omit_pk' => true,
+ *       'exclude_fields' => ['password_hash', 'api_key'],
+ *       'readonly_fields' => ['created_at', 'updated_at'],
+ *   ]);
+ *   $editor->render();
+ */
+class DynamicTableEditor {
+
+    private $table_name;
+    private $primary_key;
+    private $fields = [];
+    private $options = [];
+    private $crud;
+
+    // Default options
+    private $defaults = [
+        'rows_per_page' => 10,
+        'title' => null,           // Auto-generated from table name if null
+        'omit_pk' => true,         // Hide primary key column
+        'exclude_fields' => [],    // Fields to completely hide
+        'readonly_fields' => [],   // Fields that can't be edited
+        'ajax_root' => '',         // Path to ajaxCRUD root
+        'allow_add' => true,
+        'allow_delete' => true,
+        'field_types' => [],       // Override field types: ['email' => 'email', 'phone' => 'tel']
+        'dropdowns' => [],         // Define dropdowns: ['status' => [['active','Active'], ['inactive','Inactive']]]
+        'toggles' => [],           // Define toggle fields: ['is_active' => ['1', '0']]
+        'ranges' => [],            // Define range sliders: ['rating' => [0, 100, 5, true]]
+    ];
+
+    /**
+     * Create a new DynamicTableEditor
+     *
+     * @param string $table_name Database table name
+     * @param array $options Configuration options
+     */
+    public function __construct($table_name, $options = []) {
+        $this->table_name = $table_name;
+        $this->options = array_merge($this->defaults, $options);
+
+        // Auto-detect primary key and fields
+        $this->detectTableStructure();
+
+        // Generate title from table name if not provided
+        if ($this->options['title'] === null) {
+            $this->options['title'] = $this->generateTitle($table_name);
+        }
+    }
+
+    /**
+     * Detect table structure (primary key and fields)
+     */
+    private function detectTableStructure() {
+        $driver = getDBDriver();
+
+        if ($driver === 'sqlite') {
+            $rs = q("PRAGMA table_info({$this->table_name})");
+            foreach ($rs as $row) {
+                $this->fields[] = $row['name'];
+                if ($row['pk'] == 1) {
+                    $this->primary_key = $row['name'];
+                }
+            }
+        } else {
+            // MySQL/PostgreSQL
+            $rs = q("SHOW COLUMNS FROM {$this->table_name}");
+            foreach ($rs as $row) {
+                $field = $row['Field'] ?? $row[0];
+                $key = $row['Key'] ?? $row[3] ?? '';
+                $this->fields[] = $field;
+                if ($key === 'PRI') {
+                    $this->primary_key = $field;
+                }
+            }
+        }
+
+        // Fallback: assume first field is primary key
+        if (!$this->primary_key && count($this->fields) > 0) {
+            $this->primary_key = $this->fields[0];
+        }
+    }
+
+    /**
+     * Generate a nice title from table name
+     */
+    private function generateTitle($table_name) {
+        // Remove common prefixes
+        $name = preg_replace('/^(tbl|table|t_)/i', '', $table_name);
+        // Convert camelCase or snake_case to words
+        $name = preg_replace('/([a-z])([A-Z])/', '$1 $2', $name);
+        $name = str_replace('_', ' ', $name);
+        return ucwords($name);
+    }
+
+    /**
+     * Generate a nice display name from field name
+     */
+    private function generateDisplayName($field_name) {
+        // Remove common prefixes (fld, field_, col_, f_)
+        $name = preg_replace('/^(fld|field_|col_|f_)/i', '', $field_name);
+        // Convert camelCase to words
+        $name = preg_replace('/([a-z])([A-Z])/', '$1 $2', $name);
+        // Convert snake_case to words
+        $name = str_replace('_', ' ', $name);
+        return ucwords($name);
+    }
+
+    /**
+     * Configure and return the ajaxCRUD instance
+     */
+    public function getCrud() {
+        if ($this->crud) {
+            return $this->crud;
+        }
+
+        // Create the ajaxCRUD instance
+        $this->crud = new ajaxCRUD(
+            $this->options['title'],
+            $this->table_name,
+            $this->primary_key,
+            $this->options['ajax_root']
+        );
+
+        // Set rows per page
+        $this->crud->setLimit($this->options['rows_per_page']);
+
+        // Omit primary key if requested
+        if ($this->options['omit_pk']) {
+            $this->crud->omitPrimaryKey();
+        }
+
+        // Disable add/delete if requested
+        if (!$this->options['allow_add']) {
+            $this->crud->disallowAdd();
+        }
+        if (!$this->options['allow_delete']) {
+            $this->crud->disallowDelete();
+        }
+
+        // Configure each field
+        foreach ($this->fields as $field) {
+            // Skip excluded fields
+            if (in_array($field, $this->options['exclude_fields'])) {
+                $this->crud->omitField($field);
+                continue;
+            }
+
+            // Set display name
+            $displayName = $this->generateDisplayName($field);
+            $this->crud->displayAs($field, $displayName);
+
+            // Set readonly fields
+            if (in_array($field, $this->options['readonly_fields'])) {
+                $this->crud->disallowEdit($field);
+            }
+
+            // Apply field type overrides
+            if (isset($this->options['field_types'][$field])) {
+                $this->crud->modifyFieldWithClass($field, $this->options['field_types'][$field]);
+            }
+
+            // Apply dropdowns
+            if (isset($this->options['dropdowns'][$field])) {
+                $this->crud->defineAllowableValues($field, $this->options['dropdowns'][$field]);
+            }
+
+            // Apply toggles
+            if (isset($this->options['toggles'][$field])) {
+                $values = $this->options['toggles'][$field];
+                $this->crud->defineToggle($field, $values[0], $values[1]);
+            }
+
+            // Apply range sliders
+            if (isset($this->options['ranges'][$field])) {
+                $range = $this->options['ranges'][$field];
+                $this->crud->defineRange($field, $range[0], $range[1], $range[2] ?? 1, $range[3] ?? false);
+            }
+        }
+
+        // Auto-detect common field patterns and apply appropriate types
+        $this->autoConfigureFields();
+
+        return $this->crud;
+    }
+
+    /**
+     * Auto-configure fields based on common naming patterns
+     */
+    private function autoConfigureFields() {
+        foreach ($this->fields as $field) {
+            $lower = strtolower($field);
+
+            // Skip if already configured via options
+            if (isset($this->options['field_types'][$field]) ||
+                isset($this->options['dropdowns'][$field]) ||
+                isset($this->options['toggles'][$field]) ||
+                isset($this->options['ranges'][$field])) {
+                continue;
+            }
+
+            // Email fields
+            if (strpos($lower, 'email') !== false) {
+                $this->crud->modifyFieldWithClass($field, 'email');
+            }
+            // Phone fields
+            elseif (strpos($lower, 'phone') !== false || strpos($lower, 'tel') !== false || strpos($lower, 'mobile') !== false) {
+                $this->crud->modifyFieldWithClass($field, 'tel');
+            }
+            // URL fields
+            elseif (strpos($lower, 'url') !== false || strpos($lower, 'website') !== false || strpos($lower, 'link') !== false) {
+                $this->crud->modifyFieldWithClass($field, 'url');
+            }
+            // Date fields
+            elseif (preg_match('/(date|_at|_on)$/i', $lower) && strpos($lower, 'update') === false) {
+                // Note: created_at, updated_at are usually readonly timestamps
+                if (strpos($lower, 'created') !== false || strpos($lower, 'updated') !== false || strpos($lower, 'modified') !== false) {
+                    $this->crud->disallowEdit($field);
+                }
+            }
+            // Boolean/Active fields - make them toggles
+            elseif (preg_match('/^(is_|has_|can_|allow_|enable)/i', $lower) ||
+                    in_array($lower, ['active', 'enabled', 'visible', 'published', 'fldactive'])) {
+                $this->crud->defineToggle($field, '1', '0');
+            }
+        }
+    }
+
+    /**
+     * Render the table editor
+     */
+    public function render() {
+        $crud = $this->getCrud();
+        $crud->showTable();
+    }
+
+    /**
+     * Get the table HTML without echoing
+     */
+    public function getHtml() {
+        ob_start();
+        $this->render();
+        return ob_get_clean();
+    }
+
+    /**
+     * Set rows per page
+     */
+    public function setRowsPerPage($count) {
+        $this->options['rows_per_page'] = $count;
+        if ($this->crud) {
+            $this->crud->setLimit($count);
+        }
+        return $this;
+    }
+
+    /**
+     * Add a dropdown for a field
+     */
+    public function addDropdown($field, $options) {
+        $this->options['dropdowns'][$field] = $options;
+        return $this;
+    }
+
+    /**
+     * Add a toggle for a field
+     */
+    public function addToggle($field, $on_value = '1', $off_value = '0') {
+        $this->options['toggles'][$field] = [$on_value, $off_value];
+        return $this;
+    }
+
+    /**
+     * Add a range slider for a field
+     */
+    public function addRange($field, $min, $max, $step = 1, $show_value = true) {
+        $this->options['ranges'][$field] = [$min, $max, $step, $show_value];
+        return $this;
+    }
+
+    /**
+     * Exclude fields from display
+     */
+    public function excludeFields($fields) {
+        $this->options['exclude_fields'] = array_merge(
+            $this->options['exclude_fields'],
+            is_array($fields) ? $fields : [$fields]
+        );
+        return $this;
+    }
+
+    /**
+     * Make fields readonly
+     */
+    public function readonlyFields($fields) {
+        $this->options['readonly_fields'] = array_merge(
+            $this->options['readonly_fields'],
+            is_array($fields) ? $fields : [$fields]
+        );
+        return $this;
+    }
+
+    /**
+     * Get table info for debugging
+     */
+    public function getTableInfo() {
+        return [
+            'table' => $this->table_name,
+            'primary_key' => $this->primary_key,
+            'fields' => $this->fields,
+            'options' => $this->options,
+        ];
+    }
+}
 ?>
