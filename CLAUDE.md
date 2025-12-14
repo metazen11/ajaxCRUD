@@ -36,7 +36,7 @@ ajaxCRUD is a PHP library for creating AJAX-based CRUD (Create, Read, Update, De
 - [ ] Output encoding (htmlspecialchars for HTML, json_encode for JSON)
 - [ ] SQL injection prevention (prepared statements only)
 - [ ] XSS prevention (escape all user-generated content)
-- [ ] CSRF protection (token validation on state-changing requests)
+- [x] CSRF protection (token validation on state-changing requests)
 - [ ] Secure file operations (validate paths, restrict extensions)
 - [ ] Error messages don't leak system information
 

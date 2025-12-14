@@ -11,6 +11,27 @@ let sortReq = '';          // Used for sorting the table
 let thisPage = '';         // The PHP file loading ajaxCRUD (including all params)
 let ajaxFile = '';         // The AJAX endpoint file
 
+/**
+ * Get CSRF token from meta tag
+ * @returns {string} The CSRF token or empty string
+ */
+function getCsrfToken() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.getAttribute('content') : '';
+}
+
+/**
+ * Append CSRF token to URL
+ * @param {string} url - The URL to append token to
+ * @returns {string} URL with CSRF token
+ */
+function appendCsrfToken(url) {
+    const token = getCsrfToken();
+    if (!token) return url;
+    const separator = url.includes('?') ? '&' : '?';
+    return url + separator + 'csrf_token=' + encodeURIComponent(token);
+}
+
 // Legacy compatibility - map old var names
 Object.defineProperty(window, 'loading_image_html', {
     get: () => loadingImageHtml,
@@ -40,10 +61,11 @@ function getThisPage() {
  */
 async function sndUpdateReq(action) {
     try {
-        const response = await fetch(action, {
+        const response = await fetch(appendCsrfToken(action), {
             method: 'GET',
             headers: {
-                'X-Requested-With': 'XMLHttpRequest'
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-Token': getCsrfToken()
             }
         });
         const text = await response.text();
@@ -59,10 +81,11 @@ async function sndUpdateReq(action) {
  */
 async function sndDeleteReq(action) {
     try {
-        const response = await fetch(action, {
+        const response = await fetch(appendCsrfToken(action), {
             method: 'GET',
             headers: {
-                'X-Requested-With': 'XMLHttpRequest'
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-Token': getCsrfToken()
             }
         });
         const returnString = await response.text();
@@ -89,18 +112,20 @@ async function sndDeleteReq(action) {
  */
 async function sndAddReq(action, table) {
     try {
-        await fetch(action, {
+        await fetch(appendCsrfToken(action), {
             method: 'GET',
             headers: {
-                'X-Requested-With': 'XMLHttpRequest'
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-Token': getCsrfToken()
             }
         });
 
         const action2 = `${ajaxFile}?ajaxAction=add&table=${encodeURIComponent(table)}`;
-        const response = await fetch(action2, {
+        const response = await fetch(appendCsrfToken(action2), {
             method: 'GET',
             headers: {
-                'X-Requested-With': 'XMLHttpRequest'
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-Token': getCsrfToken()
             }
         });
         const tableHtml = await response.text();
@@ -121,18 +146,20 @@ async function sndAddReq(action, table) {
  */
 async function sndFilterReq(action, table) {
     try {
-        await fetch(action, {
+        await fetch(appendCsrfToken(action), {
             method: 'GET',
             headers: {
-                'X-Requested-With': 'XMLHttpRequest'
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-Token': getCsrfToken()
             }
         });
 
         const filterAction = `${ajaxFile}?ajaxAction=filter&table=${encodeURIComponent(table)}`;
-        const response = await fetch(filterAction, {
+        const response = await fetch(appendCsrfToken(filterAction), {
             method: 'GET',
             headers: {
-                'X-Requested-With': 'XMLHttpRequest'
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-Token': getCsrfToken()
             }
         });
         const tableHtml = await response.text();
@@ -153,18 +180,20 @@ async function sndFilterReq(action, table) {
  */
 async function sndSortReq(action, table) {
     try {
-        await fetch(action, {
+        await fetch(appendCsrfToken(action), {
             method: 'GET',
             headers: {
-                'X-Requested-With': 'XMLHttpRequest'
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-Token': getCsrfToken()
             }
         });
 
         const sortAction = `${ajaxFile}?ajaxAction=sort&table=${encodeURIComponent(table)}`;
-        const response = await fetch(sortAction, {
+        const response = await fetch(appendCsrfToken(sortAction), {
             method: 'GET',
             headers: {
-                'X-Requested-With': 'XMLHttpRequest'
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-Token': getCsrfToken()
             }
         });
         const tableHtml = await response.text();
@@ -205,6 +234,14 @@ function sndReqNoResponseChk(action) {
  * @param {string} returnString - The response text from the server
  */
 function handleUpdateResponse(returnString) {
+    // Check for CSRF error response
+    if (returnString.substring(0, 10) === 'csrf_error') {
+        const brokenString = returnString.split('|');
+        const errorMessage = brokenString[2] || 'Security token expired. Please refresh the page.';
+        alert(errorMessage);
+        return;
+    }
+
     // Check for validation error response
     if (returnString.substring(0, 16) === 'validation_error') {
         const brokenString = returnString.split('|');

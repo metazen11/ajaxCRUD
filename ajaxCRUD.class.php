@@ -40,6 +40,24 @@
 		# a date in the past
 		header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
 
+		// CSRF Protection for state-changing operations
+		$stateChangingActions = ['update', 'delete'];
+		if (in_array($ajaxAction, $stateChangingActions)) {
+			// Get CSRF token from request parameter or header
+			$csrf_token = $_REQUEST['csrf_token'] ?? '';
+			if (empty($csrf_token)) {
+				// Check header (X-CSRF-Token)
+				$csrf_token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+			}
+
+			// Validate CSRF token (function from preheader.php)
+			if (function_exists('validateCsrfToken') && !validateCsrfToken($csrf_token)) {
+				http_response_code(403);
+				echo "csrf_error|invalid_token|CSRF token validation failed";
+				exit();
+			}
+		}
+
 		// Sanitize table/field names to prevent SQL injection (only allow alphanumeric and underscore)
 		$table      = escapeIdentifier($_REQUEST['table'] ?? '');
 		$pk         = escapeIdentifier($_REQUEST['pk'] ?? '');
