@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  web:
+    image: php:8.2-apache
+    container_name: ajaxcrud-demo
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+    environment:
+      - DB_HOST=db
+      - DB_NAME=ajaxcrud_demo
+      - DB_USER=ajaxcrud
+      - DB_PASS=ajaxcrud123
+    depends_on:
+      - db
+    command: >
+      bash -c "
+        docker-php-ext-install pdo pdo_mysql &&
+        a2enmod rewrite &&
+        apache2-foreground
+      "
+    networks:
+      - ajaxcrud-network
+
+  db:
+    image: mysql:8.0
+    container_name: ajaxcrud-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: ajaxcrud_demo
+      MYSQL_USER: ajaxcrud
+      MYSQL_PASSWORD: ajaxcrud123
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./examples/example.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    networks:
+      - ajaxcrud-network
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: ajaxcrud-phpmyadmin
+    environment:
+      PMA_HOST: db
+      PMA_USER: ajaxcrud
+      PMA_PASSWORD: ajaxcrud123
+    ports:
+      - "8081:80"
+    depends_on:
+      - db
+    networks:
+      - ajaxcrud-network
+
+networks:
+  ajaxcrud-network:
+    driver: bridge
+
+volumes:
+  db_data:

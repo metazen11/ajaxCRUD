@@ -60,6 +60,28 @@
 
 		// Sanitize table/field names to prevent SQL injection (only allow alphanumeric and underscore)
 		$table      = escapeIdentifier($_REQUEST['table'] ?? '');
+
+		// Auth checks (if Auth module is loaded)
+		if (class_exists('AuthManager')) {
+			$authManager = AuthManager::getInstance();
+			if ($authManager->isEnabled()) {
+				// Check permissions based on action
+				if ($ajaxAction === 'update' || $ajaxAction === 'add') {
+					if (!$authManager->can_write($table)) {
+						http_response_code(403);
+						echo "auth_error|forbidden|You do not have permission to modify this table";
+						exit();
+					}
+				}
+				if ($ajaxAction === 'delete') {
+					if (!$authManager->can_delete($table)) {
+						http_response_code(403);
+						echo "auth_error|forbidden|You do not have permission to delete from this table";
+						exit();
+					}
+				}
+			}
+		}
 		$pk         = escapeIdentifier($_REQUEST['pk'] ?? '');
 		$field      = escapeIdentifier(trim($_REQUEST['field'] ?? ''));
 		$id         = $_REQUEST['id'] ?? '';
@@ -96,14 +118,37 @@
 				// Sanitize value based on field type
 				$val = ajaxCRUD::sanitizeFieldValue($val, $_REQUEST['vtype'] ?? '');
 
+				// Get old record for audit (if audit is enabled)
+				$oldRecord = [];
+				if (class_exists('AuditLog') && AuditLog::getInstance()->isEnabled()) {
+					$oldRecordData = q("SELECT * FROM `$table` WHERE `$pk` = ?", [$id]);
+					if (!empty($oldRecordData)) {
+						$oldRecord = $oldRecordData[0];
+					}
+				}
+
 				// Check to see if record exists using prepared statement
 				$row_current_value = q1("SELECT `$pk` FROM `$table` WHERE `$pk` = ?", [$id]);
-				if ($row_current_value === null || $row_current_value === ''){
+				$isInsert = ($row_current_value === null || $row_current_value === '');
+				
+				if ($isInsert){
 					qr("INSERT INTO `$table` (`$pk`) VALUES (?)", [$id]);
 				}
 
 				// Update using prepared statement
 				$success = qr("UPDATE `$table` SET `$field` = ? WHERE `$pk` = ?", [$val, $id]);
+
+				// Audit log (if enabled)
+				if (class_exists('AuditLog') && AuditLog::getInstance()->isEnabled() && $success) {
+					$newRecordData = q("SELECT * FROM `$table` WHERE `$pk` = ?", [$id]);
+					$newRecord = !empty($newRecordData) ? $newRecordData[0] : [];
+					
+					if ($isInsert) {
+						AuditLog::getInstance()->logInsert($table, $id, $newRecord);
+					} else {
+						AuditLog::getInstance()->logUpdate($table, $id, $oldRecord, $newRecord);
+					}
+				}
 
 				if ($val === '') $val = "&nbsp;&nbsp;";
 
@@ -125,7 +170,23 @@
 
 		if ($ajaxAction === 'delete'){
 			if ($table && $pk && $id !== '') {
+				// Get old record for audit (if audit is enabled)
+				$oldRecord = [];
+				if (class_exists('AuditLog') && AuditLog::getInstance()->isEnabled()) {
+					$oldRecordData = q("SELECT * FROM `$table` WHERE `$pk` = ?", [$id]);
+					if (!empty($oldRecordData)) {
+						$oldRecord = $oldRecordData[0];
+					}
+				}
+
+				// Delete record
 				qr("DELETE FROM `$table` WHERE `$pk` = ?", [$id]);
+
+				// Audit log (if enabled)
+				if (class_exists('AuditLog') && AuditLog::getInstance()->isEnabled()) {
+					AuditLog::getInstance()->logDelete($table, $id, $oldRecord);
+				}
+
 				echo $table . "|" . $id;
 			}
 		}

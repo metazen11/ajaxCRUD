@@ -1,11 +1,83 @@
-# ajaxCRUD v7.0
+# ajaxCRUD v7.1 🚀
 
-A lightweight PHP library for creating inline-editable database tables with AJAX auto-save. Click any cell to edit - changes save automatically without page refresh.
+A lightweight PHP library for creating inline-editable database tables with AJAX auto-save. Now with **Supabase-level features**: Auth/RBAC, Row-Level Security, Audit Logs, and REST API!
 
 ![PHP 8.1+](https://img.shields.io/badge/PHP-8.1%2B-blue)
 ![License: GPL-2.0](https://img.shields.io/badge/License-GPL--2.0-green)
+[![Composer](https://img.shields.io/badge/Composer-Ready-orange)](https://packagist.org/)
 
-## Features
+> **NEW in v7.1**: Transform from a simple CRUD widget into a backend accelerator with enterprise-grade features!
+
+## ✨ What's New in v7.1
+
+### 🔐 Auth Hooks + RBAC
+```php
+$rbac = new RoleBasedRBAC($_SESSION['user_id'], 'admin');
+AuthManager::getInstance()->init($rbac);
+// Now your CRUD respects permissions!
+```
+
+### 🛡️ Row-Level Security (RLS)
+```php
+RLS::getInstance()->addRule('orders', 'tenant_id', $_SESSION['tenant_id']);
+// Multi-tenant data isolation out-of-the-box!
+```
+
+### 📝 Audit Log
+```php
+AuditLog::getInstance()->enable();
+// Every change is automatically tracked (who/what/when)
+```
+
+### 🔌 REST API with OpenAPI
+```php
+$router = new APIRouter();
+$router->register('contacts', 'tblContacts', 'pkID');
+$router->handle();
+// Full REST API with auto-generated OpenAPI spec!
+```
+
+## 🎯 Features (Now vs. Then)
+
+| Feature | v7.0 | v7.1 |
+|---------|------|------|
+| Inline Editing | ✅ | ✅ |
+| CSRF Protection | ✅ | ✅ |
+| Validation | ✅ | ✅ |
+| **Auth/RBAC** | ❌ | ✅ **NEW** |
+| **Row-Level Security** | ❌ | ✅ **NEW** |
+| **Audit Log** | ❌ | ✅ **NEW** |
+| **REST API** | ❌ | ✅ **NEW** |
+| **Docker Setup** | ❌ | ✅ **NEW** |
+| **Composer Package** | ❌ | ✅ **NEW** |
+
+## 🚀 Quick Start
+
+### One-Command Demo
+```bash
+docker-compose up -d
+# Visit http://localhost:8080/examples/demo_supabase_features.php
+```
+
+### Composer Install
+```bash
+composer require ajaxcrud/ajaxcrud
+```
+
+### Manual Install
+```bash
+git clone https://github.com/metazen11/ajaxCRUD.git
+cd ajaxCRUD
+./install.sh
+```
+
+## 📖 Documentation
+
+- **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
+- **[SUPABASE_FEATURES.md](SUPABASE_FEATURES.md)** - Complete feature guide
+- **[CHANGELOG.md](CHANGELOG.md)** - What's new in v7.1
+
+## 💡 Core Features (v7.0)
 
 - **Inline Editing** - Click any cell to edit, auto-saves on blur/enter
 - **HTML5 Form Elements** - Date pickers, color pickers, email/tel/url inputs, range sliders
